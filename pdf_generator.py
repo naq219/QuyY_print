@@ -63,35 +63,92 @@ class PDFGenerator:
             pagesize = A4
         
         c = canvas.Canvas(output_path, pagesize=pagesize)
-        width, height = pagesize
         
+        # Vẽ nội dung trang
+        self._draw_page_content(c, data, positions, customs)
+        
+        # Lưu PDF
+        c.save()
+    
+    def _draw_page_content(self, canvas_obj, data, positions, customs):
+        """
+        Vẽ nội dung một trang lên canvas (không save)
+        
+        Args:
+            canvas_obj: canvas object của reportlab
+            data: dict chứa thông tin cần in
+            positions: dict tọa độ các trường
+            customs: dict các custom fields
+        """
         # Đăng ký font nếu chưa
         if self.register_font():
-            c.setFont(self.font_name, 12)
+            canvas_obj.setFont(self.font_name, 12)
         else:
-            c.setFont("Helvetica", 12)
+            canvas_obj.setFont("Helvetica", 12)
             print("Cảnh báo: Không thể load font tùy chỉnh, sử dụng Helvetica")
         
         # In từng trường chuẩn
-        self._draw_field(c, "phap_danh", data.get("phap_danh", ""), positions)
-        self._draw_field(c, "ho_ten", data.get("ho_ten", ""), positions)
-        self._draw_field(c, "sinh_nam", data.get("sinh_nam", ""), positions)
-        self._draw_field(c, "dia_chi", data.get("dia_chi", ""), positions)
-        self._draw_field(c, "ngay_duong", data.get("ngay_duong", ""), positions)
-        self._draw_field(c, "thang_duong", data.get("thang_duong", ""), positions)
-        self._draw_field(c, "nam_duong", data.get("nam_duong", ""), positions)
-        self._draw_field(c, "ngay_am", data.get("ngay_am", ""), positions)
-        self._draw_field(c, "thang_am", data.get("thang_am", ""), positions)
-        self._draw_field(c, "nam_am", data.get("nam_am", ""), positions)
-        self._draw_field(c, "phat_lich", data.get("phat_lich", ""), positions)
+        self._draw_field(canvas_obj, "phap_danh", data.get("phap_danh", ""), positions)
+        self._draw_field(canvas_obj, "ho_ten", data.get("ho_ten", ""), positions)
+        self._draw_field(canvas_obj, "sinh_nam", data.get("sinh_nam", ""), positions)
+        self._draw_field(canvas_obj, "dia_chi", data.get("dia_chi", ""), positions)
+        self._draw_field(canvas_obj, "ngay_duong", data.get("ngay_duong", ""), positions)
+        self._draw_field(canvas_obj, "thang_duong", data.get("thang_duong", ""), positions)
+        self._draw_field(canvas_obj, "nam_duong", data.get("nam_duong", ""), positions)
+        self._draw_field(canvas_obj, "ngay_am", data.get("ngay_am", ""), positions)
+        self._draw_field(canvas_obj, "thang_am", data.get("thang_am", ""), positions)
+        self._draw_field(canvas_obj, "nam_am", data.get("nam_am", ""), positions)
+        self._draw_field(canvas_obj, "phat_lich", data.get("phat_lich", ""), positions)
         
         # In các custom fields
         for field_name, field_config in customs.items():
             value = field_config.get("value", "")
-            self._draw_custom_field(c, field_config, value)
+            self._draw_custom_field(canvas_obj, field_config, value)
+    
+    def create_merged_pdf(self, data_list, output_path, field_positions=None, custom_fields=None, progress_callback=None):
+        """
+        Tạo một PDF với nhiều trang từ danh sách dữ liệu
+        
+        Args:
+            data_list: list các dict chứa thông tin cần in
+            output_path: đường dẫn file PDF output
+            field_positions: dict tọa độ các trường
+            custom_fields: dict các custom fields
+            progress_callback: callback để báo tiến độ (current, total)
+        
+        Returns:
+            int: số trang đã tạo
+        """
+        positions = field_positions or FIELD_POSITIONS
+        customs = custom_fields or CUSTOM_FIELDS
+        
+        # Tạo canvas PDF
+        if PDF_ORIENTATION == "landscape":
+            pagesize = landscape(A4)
+        else:
+            pagesize = A4
+        
+        c = canvas.Canvas(output_path, pagesize=pagesize)
+        total = len(data_list)
+        page_count = 0
+        
+        for idx, data in enumerate(data_list):
+            # Vẽ nội dung trang
+            self._draw_page_content(c, data, positions, customs)
+            page_count += 1
+            
+            # Tạo trang mới (trừ trang cuối)
+            if idx < total - 1:
+                c.showPage()
+            
+            # Callback progress
+            if progress_callback:
+                progress_callback(idx + 1, total)
         
         # Lưu PDF
         c.save()
+        return page_count
+
     
     def _draw_field(self, canvas_obj, field_name, text, positions=None):
         """

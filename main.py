@@ -34,6 +34,9 @@ class QuyYPrinterApp:
         self.record_count = tk.StringVar(value="0 bản ghi")
         self.status_text = tk.StringVar(value="Sẵn sàng")
         
+        # Export mode: "multiple" = nhiều file, "single" = 1 file nhiều trang
+        self.export_mode = tk.StringVar(value="multiple")
+        
         # Field positions (editable copy)
         self.field_positions = copy.deepcopy(FIELD_POSITIONS)
         self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
@@ -163,14 +166,33 @@ class QuyYPrinterApp:
             cursor="hand2"
         ).pack(side=tk.RIGHT)
         
+        # Export mode options
+        export_mode_frame = tk.LabelFrame(content_frame, text="3. Chế Độ Xuất PDF", font=("Arial", 11, "bold"), padx=10, pady=10)
+        export_mode_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        tk.Radiobutton(
+            export_mode_frame,
+            text="📄 Nhiều file PDF (mỗi bản ghi một file riêng)",
+            variable=self.export_mode,
+            value="multiple",
+            font=("Arial", 10)
+        ).pack(anchor=tk.W)
+        
+        tk.Radiobutton(
+            export_mode_frame,
+            text="📚 Một file PDF (tất cả bản ghi trong một file, mỗi bản ghi một trang)",
+            variable=self.export_mode,
+            value="single",
+            font=("Arial", 10)
+        ).pack(anchor=tk.W)
+        
         # Info box
         info_frame = tk.LabelFrame(content_frame, text="📋 Thông tin", font=("Arial", 11, "bold"), padx=10, pady=10)
-        info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        info_frame.pack(fill=tk.X, pady=(0, 15))
         
         info_text = """• PDF được tạo theo hướng NGANG (landscape)
 • Chuyển sang tab "Tọa Độ" để điều chỉnh vị trí các trường
-• Chuyển sang tab "Custom Fields" để thêm trường tùy chỉnh
-• Nhấn "Lưu Cấu Hình" trong các tab để lưu thay đổi"""
+• Chuyển sang tab "Custom Fields" để thêm trường tùy chỉnh"""
         
         tk.Label(
             info_frame,
@@ -699,22 +721,44 @@ class QuyYPrinterApp:
                 self.status_text.set(f"Đang xử lý: {current}/{total}")
                 self.root.update_idletasks()
             
-            # Create modified generator with custom config
-            success, error, errors = self._create_batch_pdf_with_config(
-                self.excel_path.get(),
-                self.output_dir.get(),
-                progress_callback
-            )
+            export_mode = self.export_mode.get()
             
-            # Hiển thị kết quả
-            message = f"Hoàn thành!\n\nThành công: {success} file\nLỗi: {error} file"
-            if errors:
-                message += f"\n\nChi tiết lỗi:\n" + "\n".join(errors[:5])
-                if len(errors) > 5:
-                    message += f"\n... và {len(errors) - 5} lỗi khác"
-            
-            messagebox.showinfo("Kết quả", message)
-            self.status_text.set(f"Hoàn thành: {success} file thành công, {error} file lỗi")
+            if export_mode == "single":
+                # Tạo 1 file PDF với nhiều trang
+                success, error, errors = self._create_merged_pdf_with_config(
+                    self.excel_path.get(),
+                    self.output_dir.get(),
+                    progress_callback
+                )
+                
+                # Hiển thị kết quả
+                message = f"Hoàn thành!\n\nĐã tạo 1 file PDF với {success} trang"
+                if error > 0:
+                    message += f"\nLỗi: {error} bản ghi"
+                if errors:
+                    message += f"\n\nChi tiết lỗi:\n" + "\n".join(errors[:5])
+                    if len(errors) > 5:
+                        message += f"\n... và {len(errors) - 5} lỗi khác"
+                
+                messagebox.showinfo("Kết quả", message)
+                self.status_text.set(f"Hoàn thành: 1 file PDF với {success} trang")
+            else:
+                # Tạo nhiều file PDF
+                success, error, errors = self._create_batch_pdf_with_config(
+                    self.excel_path.get(),
+                    self.output_dir.get(),
+                    progress_callback
+                )
+                
+                # Hiển thị kết quả
+                message = f"Hoàn thành!\n\nThành công: {success} file\nLỗi: {error} file"
+                if errors:
+                    message += f"\n\nChi tiết lỗi:\n" + "\n".join(errors[:5])
+                    if len(errors) > 5:
+                        message += f"\n... và {len(errors) - 5} lỗi khác"
+                
+                messagebox.showinfo("Kết quả", message)
+                self.status_text.set(f"Hoàn thành: {success} file thành công, {error} file lỗi")
             
             # Mở thư mục output
             if success > 0:
@@ -771,6 +815,50 @@ class QuyYPrinterApp:
             
             if progress_callback:
                 progress_callback(idx + 1, total)
+        
+        return success_count, error_count, errors
+    
+    def _create_merged_pdf_with_config(self, excel_path, output_dir, progress_callback=None):
+        """Create single PDF with multiple pages from Excel data"""
+        from lunar_converter import LunarConverter
+        
+        # Đọc Excel
+        df = pd.read_excel(excel_path)
+        df = df[df['hovaten'].notna()]
+        
+        success_count = 0
+        error_count = 0
+        errors = []
+        data_list = []
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Chuẩn bị dữ liệu cho tất cả bản ghi
+        for idx, row in df.iterrows():
+            try:
+                data = self._prepare_data(row)
+                data_list.append(data)
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Dòng {idx}: {str(e)}")
+        
+        if data_list:
+            try:
+                # Tạo tên file PDF merged
+                output_path = os.path.join(output_dir, "QuyY_TatCa.pdf")
+                
+                # Tạo PDF với nhiều trang
+                page_count = self.pdf_generator.create_merged_pdf(
+                    data_list,
+                    output_path,
+                    field_positions=self.field_positions,
+                    custom_fields=self.custom_fields,
+                    progress_callback=progress_callback
+                )
+                success_count = page_count
+            except Exception as e:
+                error_count += len(data_list)
+                errors.append(f"Lỗi tạo PDF: {str(e)}")
         
         return success_count, error_count, errors
     
