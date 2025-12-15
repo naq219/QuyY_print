@@ -1,0 +1,55 @@
+========================================
+  ỨNG DỤNG IN LÁ PHÁI QUY Y
+  HƯỚNG DẪN NHANH
+========================================
+
+BƯỚC 1: CÀI ĐẶT
+-----------------
+1. Giải nén toàn bộ thư mục
+2. Đặt file font "quyyfont.ttf" vào thư mục "fonts/"
+3. Cài đặt Python 3.8+ (nếu chưa có)
+4. Mở Command Prompt/Terminal tại thư mục này
+5. Chạy: pip install -r requirements.txt
+
+BƯỚC 2: CHẠY ỨNG DỤNG
+-----------------------
+- Windows: python main.py
+- Linux/Mac: python3 main.py
+
+BƯỚC 3: SỬ DỤNG
+-----------------
+1. Click "Chọn File" → Chọn file Excel
+2. Click "Chọn Thư Mục" → Chọn nơi lưu PDF
+3. Click "Xuất PDF" để tạo file PDF
+   HOẶC
+   Click "In Trực Tiếp" để gửi đến máy in
+
+BƯỚC 4: BUILD FILE .EXE (Tùy chọn)
+------------------------------------
+- Windows: Chạy build.bat
+- Linux/Mac: Chạy ./build.sh
+
+File .exe sẽ nằm trong thư mục dist/
+
+LƯU Ý QUAN TRỌNG:
+-----------------
+✓ File Excel phải có đúng các cột:
+  - hovaten
+  - phapdanh
+  - namsinh
+  - diachithuongtru_short
+  - dauthoigian
+
+✓ Ngày quy y sẽ được chuyển sang âm lịch tự động
+
+✓ Nếu tọa độ không chính xác:
+  - Mở file config.py
+  - Điều chỉnh giá trị x, y
+  - Lưu và chạy lại
+
+✓ App chỉ in text, không in ảnh nền
+  (Để in lên giấy đã có sẵn hình)
+
+========================================
+Chúc bạn sử dụng thành công!
+========================================
