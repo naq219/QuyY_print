@@ -1,26 +1,31 @@
 # -*- coding: utf-8 -*-
 """
 Ứng dụng in lá phái quy y
-GUI với Tkinter
+GUI với Tkinter - Phiên bản có điều chỉnh tọa độ và custom fields
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 import os
 import threading
+import json
+import copy
 import pandas as pd
 from pdf_generator import PDFGenerator
-from config import FIELD_POSITIONS
+from config import FIELD_POSITIONS, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
 import platform
+
+# File lưu cấu hình
+CONFIG_FILE = "field_config.json"
 
 
 class QuyYPrinterApp:
-    """Ứng dụng in lá phái quy y"""
+    """Ứng dụng in lá phái quy y với điều chỉnh tọa độ"""
     
     def __init__(self, root):
         self.root = root
-        self.root.title("Ứng dụng In Lá Phái Quy Y")
-        self.root.geometry("700x600")
+        self.root.title("Ứng dụng In Lá Phái Quy Y - v2.0")
+        self.root.geometry("900x750")
         self.root.resizable(True, True)
         
         # Variables
@@ -29,30 +34,76 @@ class QuyYPrinterApp:
         self.record_count = tk.StringVar(value="0 bản ghi")
         self.status_text = tk.StringVar(value="Sẵn sàng")
         
+        # Field positions (editable copy)
+        self.field_positions = copy.deepcopy(FIELD_POSITIONS)
+        self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
+        self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
+        
+        # Load saved config if exists
+        self._load_config()
+        
         # PDF Generator
         self.pdf_generator = PDFGenerator()
         
         # Build GUI
         self._build_gui()
         
+        # Populate field table
+        self._refresh_field_table()
+        self._refresh_custom_table()
+        
     def _build_gui(self):
         """Xây dựng giao diện"""
         # Header
-        header_frame = tk.Frame(self.root, bg="#2c3e50", height=80)
+        header_frame = tk.Frame(self.root, bg="#2c3e50", height=60)
         header_frame.pack(fill=tk.X, side=tk.TOP)
         header_frame.pack_propagate(False)
         
         title_label = tk.Label(
             header_frame,
-            text="ỨNG DỤNG IN LÁ PHÁI QUY Y",
-            font=("Arial", 18, "bold"),
+            text="ỨNG DỤNG IN LÁ PHÁI QUY Y - v2.0",
+            font=("Arial", 16, "bold"),
             bg="#2c3e50",
             fg="white"
         )
-        title_label.pack(pady=20)
+        title_label.pack(pady=15)
         
-        # Main content
-        content_frame = tk.Frame(self.root, padx=20, pady=20)
+        # Main content with Notebook (tabs)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Tab 1: Main (file selection & actions)
+        main_tab = tk.Frame(self.notebook)
+        self.notebook.add(main_tab, text="📁 Chính")
+        self._build_main_tab(main_tab)
+        
+        # Tab 2: Coordinate adjustment
+        coord_tab = tk.Frame(self.notebook)
+        self.notebook.add(coord_tab, text="📐 Tọa Độ")
+        self._build_coord_tab(coord_tab)
+        
+        # Tab 3: Custom fields
+        custom_tab = tk.Frame(self.notebook)
+        self.notebook.add(custom_tab, text="✏️ Custom Fields")
+        self._build_custom_tab(custom_tab)
+        
+        # Status bar
+        status_frame = tk.Frame(self.root, bg="#ecf0f1", height=30)
+        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        status_frame.pack_propagate(False)
+        
+        tk.Label(
+            status_frame,
+            textvariable=self.status_text,
+            font=("Arial", 9),
+            bg="#ecf0f1",
+            anchor=tk.W,
+            padx=10
+        ).pack(fill=tk.BOTH)
+    
+    def _build_main_tab(self, parent):
+        """Tab chính: chọn file và thao tác"""
+        content_frame = tk.Frame(parent, padx=20, pady=20)
         content_frame.pack(fill=tk.BOTH, expand=True)
         
         # File Excel selection
@@ -112,17 +163,22 @@ class QuyYPrinterApp:
             cursor="hand2"
         ).pack(side=tk.RIGHT)
         
-        # Coordinate adjustment (for future feature)
-        coord_frame = tk.LabelFrame(content_frame, text="3. Điều Chỉnh Tọa Độ (Tính năng tương lai)", 
-                                     font=("Arial", 11, "bold"), padx=10, pady=10)
-        coord_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        # Info box
+        info_frame = tk.LabelFrame(content_frame, text="📋 Thông tin", font=("Arial", 11, "bold"), padx=10, pady=10)
+        info_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        info_text = """• PDF được tạo theo hướng NGANG (landscape)
+• Chuyển sang tab "Tọa Độ" để điều chỉnh vị trí các trường
+• Chuyển sang tab "Custom Fields" để thêm trường tùy chỉnh
+• Nhấn "Lưu Cấu Hình" trong các tab để lưu thay đổi"""
         
         tk.Label(
-            coord_frame,
-            text="Tính năng điều chỉnh tọa độ sẽ được cập nhật trong phiên bản sau.",
-            font=("Arial", 9),
-            fg="#95a5a6"
-        ).pack(pady=10)
+            info_frame,
+            text=info_text,
+            font=("Arial", 10),
+            justify=tk.LEFT,
+            anchor=tk.W
+        ).pack(anchor=tk.W, pady=5)
         
         # Action buttons
         action_frame = tk.Frame(content_frame)
@@ -156,20 +212,431 @@ class QuyYPrinterApp:
         
         self.progress = ttk.Progressbar(progress_frame, mode='determinate')
         self.progress.pack(fill=tk.X)
+    
+    def _build_coord_tab(self, parent):
+        """Tab điều chỉnh tọa độ"""
+        content_frame = tk.Frame(parent, padx=10, pady=10)
+        content_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Status bar
-        status_frame = tk.Frame(self.root, bg="#ecf0f1", height=30)
-        status_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        status_frame.pack_propagate(False)
-        
+        # Instructions
         tk.Label(
-            status_frame,
-            textvariable=self.status_text,
-            font=("Arial", 9),
-            bg="#ecf0f1",
-            anchor=tk.W,
-            padx=10
-        ).pack(fill=tk.BOTH)
+            content_frame,
+            text="Double-click vào ô để chỉnh sửa giá trị. Nhấn Enter để xác nhận.",
+            font=("Arial", 10),
+            fg="#7f8c8d"
+        ).pack(anchor=tk.W, pady=(0, 10))
+        
+        # Treeview for field positions
+        columns = ("Field", "X (mm)", "Y (mm)", "Size", "Bold", "Italic", "Align")
+        self.field_tree = ttk.Treeview(content_frame, columns=columns, show="headings", height=12)
+        
+        # Column headers
+        for col in columns:
+            self.field_tree.heading(col, text=col)
+            width = 100 if col == "Field" else 70
+            self.field_tree.column(col, width=width, anchor=tk.CENTER)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(content_frame, orient=tk.VERTICAL, command=self.field_tree.yview)
+        self.field_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.field_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind double-click for editing
+        self.field_tree.bind("<Double-1>", self._on_field_double_click)
+        
+        # Buttons frame
+        btn_frame = tk.Frame(parent, padx=10, pady=10)
+        btn_frame.pack(fill=tk.X)
+        
+        tk.Button(
+            btn_frame,
+            text="💾 Lưu Cấu Hình",
+            command=self._save_config,
+            bg="#27ae60",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="📂 Load Cấu Hình",
+            command=self._load_config_dialog,
+            bg="#3498db",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="🔄 Reset Mặc Định",
+            command=self._reset_default,
+            bg="#e74c3c",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.LEFT, padx=5)
+    
+    def _build_custom_tab(self, parent):
+        """Tab custom fields"""
+        content_frame = tk.Frame(parent, padx=10, pady=10)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Instructions
+        tk.Label(
+            content_frame,
+            text="Thêm các trường tùy chỉnh với giá trị cố định (ví dụ: user = naq)",
+            font=("Arial", 10),
+            fg="#7f8c8d"
+        ).pack(anchor=tk.W, pady=(0, 10))
+        
+        # Treeview for custom fields
+        columns = ("Tên Field", "Giá Trị", "X (mm)", "Y (mm)", "Size", "Align")
+        self.custom_tree = ttk.Treeview(content_frame, columns=columns, show="headings", height=8)
+        
+        for col in columns:
+            self.custom_tree.heading(col, text=col)
+            width = 100 if col in ("Tên Field", "Giá Trị") else 70
+            self.custom_tree.column(col, width=width, anchor=tk.CENTER)
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(content_frame, orient=tk.VERTICAL, command=self.custom_tree.yview)
+        self.custom_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.custom_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Bind double-click for editing
+        self.custom_tree.bind("<Double-1>", self._on_custom_double_click)
+        
+        # Add/Edit/Delete buttons
+        btn_frame = tk.Frame(parent, padx=10, pady=10)
+        btn_frame.pack(fill=tk.X)
+        
+        tk.Button(
+            btn_frame,
+            text="➕ Thêm Field",
+            command=self._add_custom_field,
+            bg="#27ae60",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="✏️ Sửa Field",
+            command=self._edit_custom_field,
+            bg="#f39c12",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="🗑️ Xóa Field",
+            command=self._delete_custom_field,
+            bg="#e74c3c",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(
+            btn_frame,
+            text="💾 Lưu Cấu Hình",
+            command=self._save_config,
+            bg="#3498db",
+            fg="white",
+            font=("Arial", 10, "bold"),
+            padx=15
+        ).pack(side=tk.RIGHT, padx=5)
+    
+    def _refresh_field_table(self):
+        """Refresh field positions table"""
+        # Clear existing
+        for item in self.field_tree.get_children():
+            self.field_tree.delete(item)
+        
+        # Add fields
+        for field_name, field_config in self.field_positions.items():
+            self.field_tree.insert("", tk.END, iid=field_name, values=(
+                field_name,
+                field_config.get("x", 0),
+                field_config.get("y", 0),
+                field_config.get("size", 12),
+                "✓" if field_config.get("bold", False) else "",
+                "✓" if field_config.get("italic", False) else "",
+                field_config.get("align", "L")
+            ))
+    
+    def _refresh_custom_table(self):
+        """Refresh custom fields table"""
+        # Clear existing
+        for item in self.custom_tree.get_children():
+            self.custom_tree.delete(item)
+        
+        # Add custom fields
+        for field_name, field_config in self.custom_fields.items():
+            self.custom_tree.insert("", tk.END, iid=field_name, values=(
+                field_name,
+                field_config.get("value", ""),
+                field_config.get("x", 0),
+                field_config.get("y", 0),
+                field_config.get("size", 12),
+                field_config.get("align", "L")
+            ))
+    
+    def _on_field_double_click(self, event):
+        """Handle double-click on field tree"""
+        item = self.field_tree.selection()
+        if not item:
+            return
+        
+        field_name = item[0]
+        column = self.field_tree.identify_column(event.x)
+        col_index = int(column[1:]) - 1
+        
+        if col_index == 0:  # Field name - not editable
+            return
+        
+        # Get current value
+        values = self.field_tree.item(field_name, "values")
+        current_value = values[col_index]
+        
+        # Column names
+        col_names = ["Field", "x", "y", "size", "bold", "italic", "align"]
+        col_key = col_names[col_index]
+        
+        if col_key in ("bold", "italic"):
+            # Toggle boolean
+            new_value = not self.field_positions[field_name].get(col_key, False)
+            self.field_positions[field_name][col_key] = new_value
+        elif col_key == "align":
+            # Cycle through L, C, R
+            aligns = ["L", "C", "R"]
+            current = self.field_positions[field_name].get("align", "L")
+            idx = aligns.index(current) if current in aligns else 0
+            new_value = aligns[(idx + 1) % 3]
+            self.field_positions[field_name]["align"] = new_value
+        else:
+            # Prompt for new value
+            new_value = simpledialog.askfloat(
+                "Chỉnh sửa",
+                f"Nhập giá trị mới cho {col_key} của {field_name}:",
+                initialvalue=float(current_value) if current_value else 0
+            )
+            if new_value is not None:
+                if col_key == "size":
+                    self.field_positions[field_name][col_key] = int(new_value)
+                else:
+                    self.field_positions[field_name][col_key] = new_value
+        
+        self._refresh_field_table()
+        self.status_text.set(f"Đã cập nhật {field_name}.{col_key}")
+    
+    def _on_custom_double_click(self, event):
+        """Handle double-click on custom field tree"""
+        item = self.custom_tree.selection()
+        if not item:
+            return
+        
+        field_name = item[0]
+        column = self.custom_tree.identify_column(event.x)
+        col_index = int(column[1:]) - 1
+        
+        if col_index == 0:  # Field name - not editable directly
+            return
+        
+        # Get current value
+        values = self.custom_tree.item(field_name, "values")
+        current_value = values[col_index]
+        
+        # Column keys
+        col_keys = ["name", "value", "x", "y", "size", "align"]
+        col_key = col_keys[col_index]
+        
+        if col_key == "align":
+            # Cycle through L, C, R
+            aligns = ["L", "C", "R"]
+            current = self.custom_fields[field_name].get("align", "L")
+            idx = aligns.index(current) if current in aligns else 0
+            new_value = aligns[(idx + 1) % 3]
+            self.custom_fields[field_name]["align"] = new_value
+        elif col_key == "value":
+            new_value = simpledialog.askstring(
+                "Chỉnh sửa",
+                f"Nhập giá trị mới cho {field_name}:",
+                initialvalue=current_value
+            )
+            if new_value is not None:
+                self.custom_fields[field_name]["value"] = new_value
+        else:
+            new_value = simpledialog.askfloat(
+                "Chỉnh sửa",
+                f"Nhập giá trị mới cho {col_key} của {field_name}:",
+                initialvalue=float(current_value) if current_value else 0
+            )
+            if new_value is not None:
+                if col_key == "size":
+                    self.custom_fields[field_name][col_key] = int(new_value)
+                else:
+                    self.custom_fields[field_name][col_key] = new_value
+        
+        self._refresh_custom_table()
+        self.status_text.set(f"Đã cập nhật custom field: {field_name}")
+    
+    def _add_custom_field(self):
+        """Add a new custom field"""
+        # Dialog to get field info
+        dialog = CustomFieldDialog(self.root, "Thêm Custom Field")
+        if dialog.result:
+            name, value, x, y, size, align = dialog.result
+            if name in self.custom_fields:
+                messagebox.showwarning("Cảnh báo", f"Field '{name}' đã tồn tại!")
+                return
+            
+            self.custom_fields[name] = {
+                "value": value,
+                "x": float(x),
+                "y": float(y),
+                "size": int(size),
+                "bold": False,
+                "italic": False,
+                "align": align
+            }
+            self._refresh_custom_table()
+            self.status_text.set(f"Đã thêm custom field: {name}")
+    
+    def _edit_custom_field(self):
+        """Edit selected custom field"""
+        item = self.custom_tree.selection()
+        if not item:
+            messagebox.showwarning("Cảnh báo", "Vui lòng chọn field cần sửa!")
+            return
+        
+        field_name = item[0]
+        field_config = self.custom_fields[field_name]
+        
+        dialog = CustomFieldDialog(
+            self.root,
+            "Sửa Custom Field",
+            initial=(
+                field_name,
+                field_config.get("value", ""),
+                field_config.get("x", 0),
+                field_config.get("y", 0),
+                field_config.get("size", 12),
+                field_config.get("align", "L")
+            )
+        )
+        
+        if dialog.result:
+            name, value, x, y, size, align = dialog.result
+            
+            # If name changed, delete old and create new
+            if name != field_name:
+                del self.custom_fields[field_name]
+            
+            self.custom_fields[name] = {
+                "value": value,
+                "x": float(x),
+                "y": float(y),
+                "size": int(size),
+                "bold": False,
+                "italic": False,
+                "align": align
+            }
+            self._refresh_custom_table()
+            self.status_text.set(f"Đã cập nhật custom field: {name}")
+    
+    def _delete_custom_field(self):
+        """Delete selected custom field"""
+        item = self.custom_tree.selection()
+        if not item:
+            messagebox.showwarning("Cảnh báo", "Vui lòng chọn field cần xóa!")
+            return
+        
+        field_name = item[0]
+        if messagebox.askyesno("Xác nhận", f"Bạn có chắc muốn xóa field '{field_name}'?"):
+            del self.custom_fields[field_name]
+            self._refresh_custom_table()
+            self.status_text.set(f"Đã xóa custom field: {field_name}")
+    
+    def _save_config(self):
+        """Save configuration to JSON file"""
+        config = {
+            "field_positions": self.field_positions,
+            "custom_fields": self.custom_fields,
+            "excel_mapping": self.excel_mapping
+        }
+        
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            messagebox.showinfo("Thành công", f"Đã lưu cấu hình vào {CONFIG_FILE}")
+            self.status_text.set(f"Đã lưu cấu hình: {CONFIG_FILE}")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể lưu cấu hình:\n{str(e)}")
+    
+    def _load_config(self):
+        """Load configuration from JSON file"""
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                
+                if "field_positions" in config:
+                    self.field_positions = config["field_positions"]
+                if "custom_fields" in config:
+                    self.custom_fields = config["custom_fields"]
+                if "excel_mapping" in config:
+                    self.excel_mapping = config["excel_mapping"]
+                
+                return True
+            except Exception as e:
+                print(f"Lỗi khi load config: {e}")
+        return False
+    
+    def _load_config_dialog(self):
+        """Load configuration from file dialog"""
+        filename = filedialog.askopenfilename(
+            title="Chọn file cấu hình",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        
+        if filename:
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                
+                if "field_positions" in config:
+                    self.field_positions = config["field_positions"]
+                if "custom_fields" in config:
+                    self.custom_fields = config["custom_fields"]
+                if "excel_mapping" in config:
+                    self.excel_mapping = config["excel_mapping"]
+                
+                self._refresh_field_table()
+                self._refresh_custom_table()
+                messagebox.showinfo("Thành công", f"Đã load cấu hình từ {filename}")
+                self.status_text.set(f"Đã load cấu hình: {os.path.basename(filename)}")
+            except Exception as e:
+                messagebox.showerror("Lỗi", f"Không thể load cấu hình:\n{str(e)}")
+    
+    def _reset_default(self):
+        """Reset to default configuration"""
+        if messagebox.askyesno("Xác nhận", "Bạn có chắc muốn reset về mặc định?\nTất cả thay đổi sẽ bị mất!"):
+            self.field_positions = copy.deepcopy(FIELD_POSITIONS)
+            self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
+            self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
+            self._refresh_field_table()
+            self._refresh_custom_table()
+            self.status_text.set("Đã reset về cấu hình mặc định")
     
     def _browse_excel(self):
         """Chọn file Excel"""
@@ -232,7 +699,8 @@ class QuyYPrinterApp:
                 self.status_text.set(f"Đang xử lý: {current}/{total}")
                 self.root.update_idletasks()
             
-            success, error, errors = self.pdf_generator.create_batch_pdf(
+            # Create modified generator with custom config
+            success, error, errors = self._create_batch_pdf_with_config(
                 self.excel_path.get(),
                 self.output_dir.get(),
                 progress_callback
@@ -262,6 +730,85 @@ class QuyYPrinterApp:
             self.status_text.set("Lỗi khi xuất PDF")
         finally:
             self.progress['value'] = 0
+    
+    def _create_batch_pdf_with_config(self, excel_path, output_dir, progress_callback=None):
+        """Create batch PDF with custom configuration"""
+        from lunar_converter import LunarConverter
+        
+        # Đọc Excel
+        df = pd.read_excel(excel_path)
+        df = df[df['hovaten'].notna()]
+        
+        success_count = 0
+        error_count = 0
+        errors = []
+        total = len(df)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for idx, row in df.iterrows():
+            try:
+                # Chuẩn bị dữ liệu
+                data = self._prepare_data(row)
+                
+                # Tạo tên file
+                ho_ten = str(row.get('hovaten', f'person_{idx}')).strip()
+                safe_filename = "".join(c for c in ho_ten if c.isalnum() or c in (' ', '_')).strip()
+                output_path = os.path.join(output_dir, f"{safe_filename}_{idx}.pdf")
+                
+                # Tạo PDF với custom config
+                self.pdf_generator.create_single_pdf(
+                    data, 
+                    output_path, 
+                    field_positions=self.field_positions,
+                    custom_fields=self.custom_fields
+                )
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Dòng {idx}: {str(e)}")
+            
+            if progress_callback:
+                progress_callback(idx + 1, total)
+        
+        return success_count, error_count, errors
+    
+    def _prepare_data(self, row):
+        """Prepare data from Excel row"""
+        from lunar_converter import LunarConverter
+        
+        phap_danh = row.get('phapdanh')
+        ho_ten = row.get('hovaten', '')
+        nam_sinh = row.get('namsinh', '')
+        dia_chi = row.get('diachithuongtru_short', '')
+        ngay_quy_y = row.get('dauthoigian', '')
+        
+        if pd.isna(phap_danh) or str(phap_danh).strip() == '':
+            phap_danh = ""
+        
+        if ngay_quy_y and not pd.isna(ngay_quy_y):
+            date_info = LunarConverter.convert_date(str(ngay_quy_y))
+        else:
+            date_info = {
+                'solar_day': '', 'solar_month': '', 'solar_year': '',
+                'lunar_day': '', 'lunar_month': '', 'lunar_year': '',
+                'buddhist_year': ''
+            }
+        
+        return {
+            "phap_danh": phap_danh,
+            "ho_ten": ho_ten if not phap_danh else "",
+            "sinh_nam": str(nam_sinh) if not pd.isna(nam_sinh) else "",
+            "dia_chi": str(dia_chi) if not pd.isna(dia_chi) else "",
+            "ngay_duong": str(date_info['solar_day']) if date_info['solar_day'] else "",
+            "thang_duong": str(date_info['solar_month']) if date_info['solar_month'] else "",
+            "nam_duong": str(date_info['solar_year']) if date_info['solar_year'] else "",
+            "ngay_am": str(date_info['lunar_day']) if date_info['lunar_day'] else "",
+            "thang_am": str(date_info['lunar_month']) if date_info['lunar_month'] else "",
+            "nam_am": str(date_info['lunar_year']) if date_info['lunar_year'] else "",
+            "phat_lich": str(date_info['buddhist_year']) if date_info['buddhist_year'] else ""
+        }
     
     def _print_direct(self):
         """In trực tiếp ra máy in"""
@@ -295,7 +842,7 @@ class QuyYPrinterApp:
                 self.root.update_idletasks()
             
             # Tạo PDF
-            success, error, errors = self.pdf_generator.create_batch_pdf(
+            success, error, errors = self._create_batch_pdf_with_config(
                 self.excel_path.get(),
                 temp_dir,
                 progress_callback
@@ -328,17 +875,11 @@ class QuyYPrinterApp:
                 pass
     
     def _print_pdf_file(self, pdf_path):
-        """
-        In một file PDF
-        
-        Args:
-            pdf_path: đường dẫn đến file PDF
-        """
+        """In một file PDF"""
         system = platform.system()
         
         try:
             if system == 'Windows':
-                # Windows: sử dụng ShellExecute với verb "print"
                 import win32api
                 import win32print
                 
@@ -357,6 +898,84 @@ class QuyYPrinterApp:
                 os.system(f'lp "{pdf_path}"')
         except Exception as e:
             print(f"Lỗi khi in file {pdf_path}: {e}")
+
+
+class CustomFieldDialog(simpledialog.Dialog):
+    """Dialog for adding/editing custom field"""
+    
+    def __init__(self, parent, title, initial=None):
+        self.initial = initial
+        self.result = None
+        super().__init__(parent, title)
+    
+    def body(self, master):
+        # Name
+        tk.Label(master, text="Tên Field:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        self.name_entry = tk.Entry(master, width=30)
+        self.name_entry.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Value
+        tk.Label(master, text="Giá trị:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.value_entry = tk.Entry(master, width=30)
+        self.value_entry.grid(row=1, column=1, padx=5, pady=5)
+        
+        # X
+        tk.Label(master, text="X (mm):").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        self.x_entry = tk.Entry(master, width=30)
+        self.x_entry.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Y
+        tk.Label(master, text="Y (mm):").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        self.y_entry = tk.Entry(master, width=30)
+        self.y_entry.grid(row=3, column=1, padx=5, pady=5)
+        
+        # Size
+        tk.Label(master, text="Cỡ chữ:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=5)
+        self.size_entry = tk.Entry(master, width=30)
+        self.size_entry.grid(row=4, column=1, padx=5, pady=5)
+        
+        # Align
+        tk.Label(master, text="Căn lề:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=5)
+        self.align_var = tk.StringVar(value="L")
+        align_frame = tk.Frame(master)
+        align_frame.grid(row=5, column=1, sticky=tk.W, padx=5, pady=5)
+        tk.Radiobutton(align_frame, text="Trái", variable=self.align_var, value="L").pack(side=tk.LEFT)
+        tk.Radiobutton(align_frame, text="Giữa", variable=self.align_var, value="C").pack(side=tk.LEFT)
+        tk.Radiobutton(align_frame, text="Phải", variable=self.align_var, value="R").pack(side=tk.LEFT)
+        
+        # Set initial values if editing
+        if self.initial:
+            name, value, x, y, size, align = self.initial
+            self.name_entry.insert(0, name)
+            self.value_entry.insert(0, value)
+            self.x_entry.insert(0, str(x))
+            self.y_entry.insert(0, str(y))
+            self.size_entry.insert(0, str(size))
+            self.align_var.set(align)
+        else:
+            # Defaults
+            self.x_entry.insert(0, "50")
+            self.y_entry.insert(0, "100")
+            self.size_entry.insert(0, "12")
+        
+        return self.name_entry
+    
+    def apply(self):
+        try:
+            name = self.name_entry.get().strip()
+            value = self.value_entry.get().strip()
+            x = float(self.x_entry.get())
+            y = float(self.y_entry.get())
+            size = int(self.size_entry.get())
+            align = self.align_var.get()
+            
+            if not name:
+                messagebox.showerror("Lỗi", "Tên field không được để trống!")
+                return
+            
+            self.result = (name, value, x, y, size, align)
+        except ValueError as e:
+            messagebox.showerror("Lỗi", f"Giá trị không hợp lệ: {e}")
 
 
 def main():
