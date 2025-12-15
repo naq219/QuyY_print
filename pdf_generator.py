@@ -6,13 +6,14 @@ Sử dụng reportlab để tạo PDF với font Unicode
 
 import os
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
-from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT
+from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
 from lunar_converter import LunarConverter
 import pandas as pd
+
 
 
 class PDFGenerator:
@@ -41,17 +42,28 @@ class PDFGenerator:
                 return False
         return self.font_registered
     
-    def create_single_pdf(self, data, output_path):
+    def create_single_pdf(self, data, output_path, field_positions=None, custom_fields=None):
         """
         Tạo PDF cho một bản ghi
         
         Args:
             data: dict chứa thông tin cần in
             output_path: đường dẫn file PDF output
+            field_positions: dict tọa độ các trường (optional, dùng FIELD_POSITIONS nếu None)
+            custom_fields: dict các trường tùy chỉnh (optional, dùng CUSTOM_FIELDS nếu None)
         """
-        # Tạo canvas PDF (A4 portrait)
-        c = canvas.Canvas(output_path, pagesize=A4)
-        width, height = A4
+        # Sử dụng config nếu không truyền vào
+        positions = field_positions or FIELD_POSITIONS
+        customs = custom_fields or CUSTOM_FIELDS
+        
+        # Tạo canvas PDF (A4 landscape hoặc portrait)
+        if PDF_ORIENTATION == "landscape":
+            pagesize = landscape(A4)
+        else:
+            pagesize = A4
+        
+        c = canvas.Canvas(output_path, pagesize=pagesize)
+        width, height = pagesize
         
         # Đăng ký font nếu chưa
         if self.register_font():
@@ -60,23 +72,28 @@ class PDFGenerator:
             c.setFont("Helvetica", 12)
             print("Cảnh báo: Không thể load font tùy chỉnh, sử dụng Helvetica")
         
-        # In từng trường
-        self._draw_field(c, "phap_danh", data.get("phap_danh", ""))
-        self._draw_field(c, "ho_ten", data.get("ho_ten", ""))
-        self._draw_field(c, "sinh_nam", data.get("sinh_nam", ""))
-        self._draw_field(c, "dia_chi", data.get("dia_chi", ""))
-        self._draw_field(c, "ngay_duong", data.get("ngay_duong", ""))
-        self._draw_field(c, "thang_duong", data.get("thang_duong", ""))
-        self._draw_field(c, "nam_duong", data.get("nam_duong", ""))
-        self._draw_field(c, "ngay_am", data.get("ngay_am", ""))
-        self._draw_field(c, "thang_am", data.get("thang_am", ""))
-        self._draw_field(c, "nam_am", data.get("nam_am", ""))
-        self._draw_field(c, "phat_lich", data.get("phat_lich", ""))
+        # In từng trường chuẩn
+        self._draw_field(c, "phap_danh", data.get("phap_danh", ""), positions)
+        self._draw_field(c, "ho_ten", data.get("ho_ten", ""), positions)
+        self._draw_field(c, "sinh_nam", data.get("sinh_nam", ""), positions)
+        self._draw_field(c, "dia_chi", data.get("dia_chi", ""), positions)
+        self._draw_field(c, "ngay_duong", data.get("ngay_duong", ""), positions)
+        self._draw_field(c, "thang_duong", data.get("thang_duong", ""), positions)
+        self._draw_field(c, "nam_duong", data.get("nam_duong", ""), positions)
+        self._draw_field(c, "ngay_am", data.get("ngay_am", ""), positions)
+        self._draw_field(c, "thang_am", data.get("thang_am", ""), positions)
+        self._draw_field(c, "nam_am", data.get("nam_am", ""), positions)
+        self._draw_field(c, "phat_lich", data.get("phat_lich", ""), positions)
+        
+        # In các custom fields
+        for field_name, field_config in customs.items():
+            value = field_config.get("value", "")
+            self._draw_custom_field(c, field_config, value)
         
         # Lưu PDF
         c.save()
     
-    def _draw_field(self, canvas_obj, field_name, text):
+    def _draw_field(self, canvas_obj, field_name, text, positions=None):
         """
         Vẽ một trường text lên PDF
         
@@ -84,11 +101,13 @@ class PDFGenerator:
             canvas_obj: đối tượng canvas của reportlab
             field_name: tên trường (key trong FIELD_POSITIONS)
             text: nội dung cần in
+            positions: dict tọa độ các trường (optional)
         """
         if not text or text == "" or str(text).lower() == "nan":
             return
         
-        field = FIELD_POSITIONS.get(field_name)
+        field_positions = positions or FIELD_POSITIONS
+        field = field_positions.get(field_name)
         if not field:
             return
         
@@ -128,6 +147,41 @@ class PDFGenerator:
             x = x - text_width
         
         canvas_obj.drawString(x, y, text_str)
+    
+    def _draw_custom_field(self, canvas_obj, field_config, text):
+        """
+        Vẽ một custom field lên PDF
+        
+        Args:
+            canvas_obj: đối tượng canvas của reportlab
+            field_config: dict cấu hình của field (x, y, size, bold, italic, align)
+            text: nội dung cần in
+        """
+        if not text or text == "" or str(text).lower() == "nan":
+            return
+        
+        # Convert mm sang points
+        x = field_config.get("x", 0) * mm
+        y = (A4_HEIGHT - field_config.get("y", 0)) * mm
+        
+        # Set font
+        font_size = field_config.get("size", 12)
+        font_style = self.font_name if self.font_registered else "Helvetica"
+        canvas_obj.setFont(font_style, font_size)
+        
+        # Vẽ text
+        text_str = str(text)
+        
+        # Căn chỉnh
+        if field_config.get("align") == "C":
+            text_width = canvas_obj.stringWidth(text_str, font_style, font_size)
+            x = x - text_width / 2
+        elif field_config.get("align") == "R":
+            text_width = canvas_obj.stringWidth(text_str, font_style, font_size)
+            x = x - text_width
+        
+        canvas_obj.drawString(x, y, text_str)
+
     
     def create_batch_pdf(self, excel_path, output_dir, progress_callback=None):
         """

@@ -1,19 +1,22 @@
 # -*- coding: utf-8 -*-
 """
 Cấu hình tọa độ và định dạng cho lá phái quy y
-Tọa độ tính theo mm trên khổ A4 portrait (210mm x 297mm)
+Tọa độ tính theo mm trên khổ A4 landscape (297mm x 210mm)
 """
 
 # Font settings
 FONT_FILE = "fonts/quyyfont.ttf"
 FONT_NAME = "QuyYFont"
 
-# A4 dimensions (mm)
-A4_WIDTH = 210
-A4_HEIGHT = 297
+# A4 dimensions (mm) - Landscape orientation (ngang)
+A4_WIDTH = 297
+A4_HEIGHT = 210
+
+# PDF Orientation
+PDF_ORIENTATION = "landscape"  # Options: "portrait", "landscape"
 
 # Tọa độ các trường (x, y theo mm, origin ở góc trên bên trái)
-# Đây là ước lượng ban đầu, có thể điều chỉnh qua GUI sau này
+# Có thể điều chỉnh qua GUI
 FIELD_POSITIONS = {
     "phap_danh": {
         "x": 85,  # mm từ trái sang
@@ -105,11 +108,26 @@ FIELD_POSITIONS = {
     }
 }
 
-# Các trường trong Excel
-EXCEL_COLUMNS = {
+# Mapping từ field PDF -> cột Excel (có thể tuỳ chỉnh)
+EXCEL_FIELD_MAPPING = {
     "ho_ten": "hovaten",
     "phap_danh": "phapdanh",
     "nam_sinh": "namsinh",
     "dia_chi": "diachithuongtru_short",
     "ngay_quy_y": "dauthoigian"
+}
+
+# Custom fields - các trường tùy chỉnh với giá trị cố định
+# Ví dụ: {"user": {"value": "naq", "x": 50, "y": 100, "size": 12, ...}}
+CUSTOM_FIELDS = {
+    # Uncomment và chỉnh sửa để thêm custom field
+    # "user": {
+    #     "value": "naq",
+    #     "x": 50,
+    #     "y": 100,
+    #     "size": 12,
+    #     "bold": False,
+    #     "italic": False,
+    #     "align": "L"
+    # }
 }
