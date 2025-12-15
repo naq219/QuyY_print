@@ -1,5 +1,4 @@
 import os
-import shutil
 import sys
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
@@ -8,12 +7,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
 
 try:
-    from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+    from config import FIELD_POSITIONS, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+    from core.resource_manager import get_font_path
 except ImportError:
     # Fallback for testing inside core/
-    import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+    from config import FIELD_POSITIONS, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+    from core.resource_manager import get_font_path
 
 
 class PDFGenerator:
@@ -29,51 +29,11 @@ class PDFGenerator:
         if font_path:
             self.font_path = font_path
         else:
-            self.font_path = self._setup_local_font()
+            # Sử dụng resource_manager để lấy đường dẫn font
+            self.font_path = get_font_path()
             
         self.font_name = FONT_NAME
         self.font_registered = False
-        
-    def _setup_local_font(self):
-        """
-        Thiết lập font từ thư mục thực thi.
-        Nếu chưa có, copy từ nguồn (bundled) ra.
-        """
-        font_filename = os.path.basename(FONT_FILE) # e.g., "quyyfont.ttf"
-        
-        # Xác định thư mục chứa file thực thi (hoặc root khi chạy script)
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.getcwd()
-            
-        target_path = os.path.join(base_dir, font_filename)
-        
-        # 1. Nếu file font đã tồn tại cạnh file exe, dùng nó
-        if os.path.exists(target_path):
-            return target_path
-            
-        # 2. Nếu chưa có, tìm font gốc và copy ra
-        source_path = FONT_FILE # Mặc định từ config (relative path)
-        
-        # Xử lý đường dẫn khi chạy trong PyInstaller bundle (_MEIPASS)
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            # FONT_FILE là "fonts/quyyfont.ttf", cần join với _MEIPASS
-            # Lưu ý user dùng `add-data "fonts;fonts"`, nên cấu trúc trong _MEIPASS là root/fonts/...
-            candidate = os.path.join(sys._MEIPASS, FONT_FILE)
-            if os.path.exists(candidate):
-                source_path = candidate
-                
-        # Thực hiện copy nếu nguồn tồn tại
-        if os.path.exists(source_path):
-            try:
-                shutil.copy2(source_path, target_path)
-                return target_path
-            except Exception as e:
-                print(f"Không thể copy font ra ngoài: {e}")
-                return source_path # Dùng tạm file trong bundle
-        
-        return source_path # Fallback về config gốc nếu không tìm thấy gì
 
     def register_font(self):
         """Đăng ký font Unicode"""

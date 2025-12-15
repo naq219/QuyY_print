@@ -14,7 +14,10 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Build file .exe...
+REM Bundle phoimau.jpg và quyyfont.ttf vào exe
+REM Các file này sẽ được extract ra thư mục exe khi chạy lần đầu
 pyinstaller --onefile --windowed --name "QuyYPrinter" ^
+  --icon "icon.ico" ^
   --add-data "phoimau.jpg;." ^
   --add-data "quyyfont.ttf;." ^
   main.py
@@ -26,13 +29,14 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/3] Copy font files...
-xcopy /Y /I fonts dist\fonts\
-
-echo.
 echo ========================================
 echo   BUILD THANH CONG!
 echo ========================================
 echo File .exe: dist\QuyYPrinter.exe
+echo.
+echo Khi chay lan dau, cac file sau se duoc tao ra:
+echo   - phoimau.jpg  (anh phoi mau)
+echo   - quyyfont.ttf (font chu)
+echo   - config.json  (cau hinh)
 echo.
 pause

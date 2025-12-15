@@ -1,87 +1,88 @@
 # -*- coding: utf-8 -*-
+"""
+Config Manager - Quản lý cấu hình ứng dụng
+Gộp field_positions, custom_fields, excel_mapping vào 1 file config.json duy nhất
+File config được lưu cùng thư mục với file exe
+"""
+
 import json
 import os
 import copy
 from config import FIELD_POSITIONS, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+from core.resource_manager import get_config_path, get_app_dir
 
-FIELD_FILE = "field.txt"
-CUSTOM_FILE = "field_custom.txt"
 
 class ConfigManager:
     """Quản lý cấu hình ứng dụng (Field positions, Custom fields)"""
     
+    CONFIG_FILENAME = "config.json"
+    
     def __init__(self):
         # Defaults
         self.field_positions = copy.deepcopy(FIELD_POSITIONS)
-        self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING) # Included with main fields
-        self.custom_fields = copy.deepcopy(CUSTOM_FIELDS) # Defaults usually empty or from config
+        self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
+        self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
         
-        self._init_files()
+        # Lấy đường dẫn config file (cùng thư mục exe)
+        self.config_path = get_config_path()
+        
+        # Khởi tạo và load config
+        self._init_config()
         self.load()
 
-    def _init_files(self):
-        """Khởi tạo file nếu chưa tồn tại"""
-        # field.txt
-        if not os.path.exists(FIELD_FILE):
-            data = {
-                "field_positions": self.field_positions,
-                "excel_mapping": self.excel_mapping
-            }
-            self._save_file(FIELD_FILE, data)
-            
-        # field_custom.txt
-        if not os.path.exists(CUSTOM_FILE):
-            # Lưu nội dung rỗng (empty dict)
-            self._save_file(CUSTOM_FILE, {})
+    def _init_config(self):
+        """Khởi tạo file config nếu chưa tồn tại"""
+        if not os.path.exists(self.config_path):
+            print(f"[ConfigManager] Tạo file config mới: {self.config_path}")
+            self._save_default_config()
+    
+    def _save_default_config(self):
+        """Lưu config mặc định"""
+        data = {
+            "field_positions": self.field_positions,
+            "excel_mapping": self.excel_mapping,
+            "custom_fields": self.custom_fields
+        }
+        self._save_file(self.config_path, data)
 
     def load(self):
-        """Load configuration from TXT files"""
-        # Load Main Fields
+        """Load configuration từ file config.json"""
         try:
-            if os.path.exists(FIELD_FILE):
-                with open(FIELD_FILE, "r", encoding="utf-8") as f:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, "r", encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
                         data = json.loads(content)
+                        
                         if "field_positions" in data:
                             self.field_positions = data["field_positions"]
                         if "excel_mapping" in data:
                             self.excel_mapping = data["excel_mapping"]
+                        if "custom_fields" in data:
+                            self.custom_fields = data["custom_fields"]
+                            
+                print(f"[ConfigManager] Đã load config từ: {self.config_path}")
         except Exception as e:
-            print(f"Lỗi load {FIELD_FILE}: {e}")
-
-        # Load Custom Fields
-        try:
-            if os.path.exists(CUSTOM_FILE):
-                with open(CUSTOM_FILE, "r", encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if content:
-                        data = json.loads(content)
-                        # Nếu file chỉ chứa dict của custom fields
-                        if isinstance(data, dict):
-                            self.custom_fields = data
-        except Exception as e:
-            print(f"Lỗi load {CUSTOM_FILE}: {e}")
+            print(f"[ConfigManager] Lỗi load config: {e}")
 
     def save(self):
-        """Save configuration to TXT files"""
-        # Save Main Fields
+        """Save configuration to config.json"""
         try:
             data = {
                 "field_positions": self.field_positions,
-                "excel_mapping": self.excel_mapping
+                "excel_mapping": self.excel_mapping,
+                "custom_fields": self.custom_fields
             }
-            self._save_file(FIELD_FILE, data)
+            self._save_file(self.config_path, data)
+            print(f"[ConfigManager] Đã lưu config: {self.config_path}")
         except Exception as e:
-            raise Exception(f"Lỗi lưu {FIELD_FILE}: {e}")
-
-        # Save Custom Fields
-        try:
-            self._save_file(CUSTOM_FILE, self.custom_fields)
-        except Exception as e:
-            raise Exception(f"Lỗi lưu {CUSTOM_FILE}: {e}")
+            raise Exception(f"Lỗi lưu config: {e}")
 
     def _save_file(self, filepath, data):
+        """Lưu data dưới dạng JSON"""
+        # Đảm bảo thư mục tồn tại
+        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+        
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -89,12 +90,11 @@ class ConfigManager:
         """Reset configuration to defaults"""
         self.field_positions = copy.deepcopy(FIELD_POSITIONS)
         self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
-        self.custom_fields = {} # Reset custom fields to empty as requested "lưu file mặc định và nội dung rỗng"
-        # Or should it reset to config.CUSTOM_FIELDS? User said "nội dung rỗng" for file creation.
-        # I'll stick to empty for custom.
+        self.custom_fields = {}  # Reset custom fields về rỗng
         self.save()
 
     def add_custom_field(self, name, value, x, y, size, align="L"):
+        """Thêm custom field mới"""
         if name in self.custom_fields:
             raise ValueError(f"Field '{name}' đã tồn tại!")
             
@@ -107,11 +107,12 @@ class ConfigManager:
             "italic": False,
             "align": align
         }
-        self.save() # Auto save
+        self.save()  # Auto save
 
     def update_custom_field(self, old_name, new_name, value, x, y, size, align):
+        """Cập nhật custom field"""
         if new_name != old_name and new_name in self.custom_fields:
-             raise ValueError(f"Field '{new_name}' đã tồn tại!")
+            raise ValueError(f"Field '{new_name}' đã tồn tại!")
 
         if new_name != old_name:
             del self.custom_fields[old_name]
@@ -125,18 +126,16 @@ class ConfigManager:
             "italic": False,
             "align": align
         }
-        self.save() # Auto save
+        self.save()  # Auto save
 
     def delete_custom_field(self, name):
+        """Xóa custom field"""
         if name in self.custom_fields:
             del self.custom_fields[name]
-            self.save() # Auto save
+            self.save()  # Auto save
 
-    # Helper needed for MainWindow load_config dialog
     def load_from_file(self, filepath):
-        """Load legacy json or new structure?"""
-        # Simplification: Loading external config might overwrite everything.
-        # Check struct
+        """Load config từ file bên ngoài (import)"""
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -153,3 +152,12 @@ class ConfigManager:
             return True
         except Exception as e:
             raise e
+
+    def export_to_file(self, filepath):
+        """Export config ra file (cho việc backup/share)"""
+        data = {
+            "field_positions": self.field_positions,
+            "excel_mapping": self.excel_mapping,
+            "custom_fields": self.custom_fields
+        }
+        self._save_file(filepath, data)

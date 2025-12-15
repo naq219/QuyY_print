@@ -5,6 +5,8 @@ from PIL import Image, ImageTk
 import os
 import shutil
 
+from core.resource_manager import get_app_dir, get_phoimau_path
+
 # Constants
 A4_WIDTH_MM = 297
 A4_HEIGHT_MM = 210
@@ -81,10 +83,13 @@ class CoordinateTab(tk.Frame):
         self.canvas.delete("bg") # Clear old bg
         self.canvas.delete("select_bg")
         
-        # Search for phoimau.png / jpg
+        # Lấy thư mục app (thư mục chứa exe)
+        app_dir = get_app_dir()
+        
+        # Search for phoimau.png / jpg trong thư mục app
         found_bg = None
         for ext in [".png", ".jpg", ".jpeg"]:
-            path = f"phoimau{ext}"
+            path = os.path.join(app_dir, f"phoimau{ext}")
             if os.path.exists(path):
                 found_bg = path
                 break
@@ -117,11 +122,14 @@ class CoordinateTab(tk.Frame):
                 messagebox.showerror("Lỗi", "Chỉ hỗ trợ file ảnh png, jpg.")
                 return
             
-            dest = f"phoimau{ext}"
+            # Lưu file vào thư mục app (cùng thư mục exe)
+            app_dir = get_app_dir()
+            dest = os.path.join(app_dir, f"phoimau{ext}")
+            
             try:
                 # Remove old files if mismatch ext
                 for old_ext in [".png", ".jpg", ".jpeg"]:
-                    old_path = f"phoimau{old_ext}"
+                    old_path = os.path.join(app_dir, f"phoimau{old_ext}")
                     if os.path.exists(old_path) and old_path != dest:
                         os.remove(old_path)
                 

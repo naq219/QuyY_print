@@ -5,7 +5,6 @@ Tọa độ tính theo mm trên khổ A4 landscape (297mm x 210mm)
 """
 
 # Font settings
-FONT_FILE = "fonts/quyyfont.ttf"
 FONT_NAME = "QuyYFont"
 
 # A4 dimensions (mm) - Landscape orientation (ngang)
