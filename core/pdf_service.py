@@ -94,8 +94,16 @@ class PDFService:
                         data = DataProcessor.process_row(row)
                         
                         ho_ten = str(row.get('hovaten', f'person_{idx}')).strip()
-                        safe_filename = "".join(c for c in ho_ten if c.isalnum() or c in (' ', '_')).strip()
-                        output_path = os.path.join(work_dir, f"{safe_filename}_{idx}.pdf")
+                        
+                        if is_print:
+                            # Print temp file: use strict ASCII to avoid OS errors
+                            import time
+                            safe_filename = f"job_{idx}_{int(time.time()*1000)}"
+                        else:
+                            # Export file: keep readability
+                            safe_filename = "".join(c for c in ho_ten if c.isalnum() or c in (' ', '_')).strip()
+                            
+                        output_path = os.path.join(work_dir, f"{safe_filename}.pdf")
                         
                         self.generator.create_single_pdf(
                             data,
@@ -169,14 +177,40 @@ class PDFService:
         system = platform.system()
         try:
             if system == 'Windows':
-                import win32api
-                import win32print
-                printer_name = win32print.GetDefaultPrinter()
-                win32api.ShellExecute(0, "print", pdf_path, f'/d:"{printer_name}"', ".", 0)
+                # Attempt 1: Win32 API ShellExecute 'print'
+                try:
+                    import win32api
+                    import win32print
+                    printer_name = win32print.GetDefaultPrinter()
+                    # 0 -> Hide window
+                    win32api.ShellExecute(0, "print", pdf_path, f'/d:"{printer_name}"', ".", 0)
+                    return True
+                except Exception as e:
+                    print(f"Win32 print failed: {e}")
+                
+                # Attempt 2: os.startfile with 'print' verb
+                try:
+                    print("Trying os.startfile print...")
+                    os.startfile(pdf_path, "print")
+                    return True
+                except Exception as e:
+                    print(f"os.startfile print failed: {e}")
+                    
+                # Attempt 3: FINAL FALLBACK - Open file for manual printing
+                print("Printing failed. Opening file for manual print.")
+                os.startfile(pdf_path) 
+                # Raise warning so UI knows
+                raise Exception("Không tìm thấy ứng dụng hỗ trợ in tự động. Đã mở file để bạn in thủ công.")
+                
             elif system == 'Darwin':
                 os.system(f'lpr "{pdf_path}"')
             else:
                 os.system(f'lp "{pdf_path}"')
         except Exception as e:
+            # Re-raise nicely formatted
+            if "No application is associated" in str(e) or str(e) == "NO_ASSOC":
+                # Fallback open happened above or needs to happen here? 
+                # If Attempt 2 fails with 1155, we fallback to Attempt 3.
+                pass 
             print(f"Lỗi in {pdf_path}: {e}")
             raise e

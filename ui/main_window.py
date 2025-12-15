@@ -156,27 +156,17 @@ class MainWindow:
         if not excel_path:
             messagebox.showwarning("Thiếu thông tin", "Vui lòng chọn file Excel!")
             return
-        
-        if not messagebox.askyesno("Xác nhận", "Bắt đầu in trực tiếp?"):
-            return
             
         try:
             _, df = ExcelHandler.read_file(excel_path)
-            mode = self.export_mode_var.get()
             
-            self.lock_ui()
-            self.status_var.set("Đang tạo PDF và in...")
-            self.progress_bar['value'] = 0
+            # Mở cửa sổ preview thay vì in batch
+            from ui.components.print_preview import PrintPreviewWindow
+            PrintPreviewWindow(self.root, df, self.config_manager, self.pdf_service)
             
-            self.pdf_service.run_print_job(
-                df, 
-                self.config_manager, 
-                mode, 
-                progress_callback=self.update_progress,
-                completion_callback=self.on_process_finished
-            )
         except Exception as e:
             messagebox.showerror("Lỗi", str(e))
+
 
     def update_progress(self, current, total):
         # Thread safe update

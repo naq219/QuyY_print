@@ -20,8 +20,16 @@ class DataProcessor:
             phap_danh = ""
         
         if ngay_quy_y and not pd.isna(ngay_quy_y):
-            # LunarConverter is now in core
-            date_info = LunarConverter.convert_date(str(ngay_quy_y))
+            try:
+                # LunarConverter is now in core
+                date_info = LunarConverter.convert_date(str(ngay_quy_y))
+            except Exception:
+                # Fallback if date is invalid (e.g. 'Dấu')
+                date_info = {
+                    'solar_day': '', 'solar_month': '', 'solar_year': '',
+                    'lunar_day': '', 'lunar_month': '', 'lunar_year': '',
+                    'buddhist_year': ''
+                }
         else:
             date_info = {
                 'solar_day': '', 'solar_month': '', 'solar_year': '',
