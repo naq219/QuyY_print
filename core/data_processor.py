@@ -31,7 +31,7 @@ class DataProcessor:
         
         return {
             "phap_danh": phap_danh,
-            "ho_ten": ho_ten if not phap_danh else "",
+            "ho_ten": ho_ten,
             "sinh_nam": str(nam_sinh) if not pd.isna(nam_sinh) else "",
             "dia_chi": str(dia_chi) if not pd.isna(dia_chi) else "",
             "ngay_duong": str(date_info['solar_day']) if date_info['solar_day'] else "",
