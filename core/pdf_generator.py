@@ -1,11 +1,12 @@
 import os
+import shutil
+import sys
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
-# Since we run from root, 'config' is available. 
-# If running as package, might need '..config' but absolute import 'config' is better if PYTHONPATH includes root.
+
 try:
     from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
 except ImportError:
@@ -13,8 +14,6 @@ except ImportError:
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
-
-
 
 
 class PDFGenerator:
@@ -27,20 +26,71 @@ class PDFGenerator:
         Args:
             font_path: đường dẫn đến file font TTF
         """
-        self.font_path = font_path or FONT_FILE
+        if font_path:
+            self.font_path = font_path
+        else:
+            self.font_path = self._setup_local_font()
+            
         self.font_name = FONT_NAME
         self.font_registered = False
         
+    def _setup_local_font(self):
+        """
+        Thiết lập font từ thư mục thực thi.
+        Nếu chưa có, copy từ nguồn (bundled) ra.
+        """
+        font_filename = os.path.basename(FONT_FILE) # e.g., "quyyfont.ttf"
+        
+        # Xác định thư mục chứa file thực thi (hoặc root khi chạy script)
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.getcwd()
+            
+        target_path = os.path.join(base_dir, font_filename)
+        
+        # 1. Nếu file font đã tồn tại cạnh file exe, dùng nó
+        if os.path.exists(target_path):
+            return target_path
+            
+        # 2. Nếu chưa có, tìm font gốc và copy ra
+        source_path = FONT_FILE # Mặc định từ config (relative path)
+        
+        # Xử lý đường dẫn khi chạy trong PyInstaller bundle (_MEIPASS)
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # FONT_FILE là "fonts/quyyfont.ttf", cần join với _MEIPASS
+            # Lưu ý user dùng `add-data "fonts;fonts"`, nên cấu trúc trong _MEIPASS là root/fonts/...
+            candidate = os.path.join(sys._MEIPASS, FONT_FILE)
+            if os.path.exists(candidate):
+                source_path = candidate
+                
+        # Thực hiện copy nếu nguồn tồn tại
+        if os.path.exists(source_path):
+            try:
+                shutil.copy2(source_path, target_path)
+                return target_path
+            except Exception as e:
+                print(f"Không thể copy font ra ngoài: {e}")
+                return source_path # Dùng tạm file trong bundle
+        
+        return source_path # Fallback về config gốc nếu không tìm thấy gì
+
     def register_font(self):
         """Đăng ký font Unicode"""
-        if not self.font_registered and os.path.exists(self.font_path):
-            try:
-                pdfmetrics.registerFont(TTFont(self.font_name, self.font_path))
-                self.font_registered = True
-                return True
-            except Exception as e:
-                print(f"Lỗi khi đăng ký font: {e}")
-                return False
+        if not self.font_registered:
+            # Check exist
+            if os.path.exists(self.font_path):
+                try:
+                    pdfmetrics.registerFont(TTFont(self.font_name, self.font_path))
+                    self.font_registered = True
+                    return True
+                except Exception as e:
+                    print(f"Lỗi khi đăng ký font '{self.font_path}': {e}")
+                    return False
+            else:
+                 print(f"File font không tồn tại: {self.font_path}")
+                 return False
+                 
         return self.font_registered
     
     def create_single_pdf(self, data, output_path, field_positions=None, custom_fields=None):
@@ -58,210 +108,98 @@ class PDFGenerator:
         customs = custom_fields or CUSTOM_FIELDS
         
         # Tạo canvas PDF (A4 landscape hoặc portrait)
-        if PDF_ORIENTATION == "landscape":
-            pagesize = landscape(A4)
-        else:
-            pagesize = A4
+        # Check orientation from config
+        is_landscape = (PDF_ORIENTATION == "landscape")
+        pagesize = landscape(A4) if is_landscape else A4
+        page_width, page_height = pagesize
         
         c = canvas.Canvas(output_path, pagesize=pagesize)
         
-        # Vẽ nội dung trang
-        self._draw_page_content(c, data, positions, customs)
+        self.register_font()
+        c.setFont(self.font_name, 12)
         
-        # Lưu PDF
+        # Vẽ các trường cố định (field_positions)
+        for field, config in positions.items():
+            if field in data:
+                self._draw_field(c, data[field], config, page_height)
+                
+        # Vẽ các trường tùy chỉnh (custom_fields)
+        # Custom fields có thể là static text (value) hoặc dynamic (nếu khớp key data?)
+        # Theo logic hiện tại, custom field có 'value' cứng.
+        for field_name, config in customs.items():
+            self._draw_custom_field(c, field_name, config, page_height)
+            
         c.save()
-    
-    def _draw_page_content(self, canvas_obj, data, positions, customs):
-        """
-        Vẽ nội dung một trang lên canvas (không save)
-        
-        Args:
-            canvas_obj: canvas object của reportlab
-            data: dict chứa thông tin cần in
-            positions: dict tọa độ các trường
-            customs: dict các custom fields
-        """
-        # Đăng ký font nếu chưa
-        if self.register_font():
-            canvas_obj.setFont(self.font_name, 12)
-        else:
-            canvas_obj.setFont("Helvetica", 12)
-            print("Cảnh báo: Không thể load font tùy chỉnh, sử dụng Helvetica")
-        
-        # In từng trường chuẩn
-        self._draw_field(canvas_obj, "phap_danh", data.get("phap_danh", ""), positions)
-        self._draw_field(canvas_obj, "ho_ten", data.get("ho_ten", ""), positions)
-        self._draw_field(canvas_obj, "sinh_nam", data.get("sinh_nam", ""), positions)
-        self._draw_field(canvas_obj, "dia_chi", data.get("dia_chi", ""), positions)
-        self._draw_field(canvas_obj, "ngay_duong", data.get("ngay_duong", ""), positions)
-        self._draw_field(canvas_obj, "thang_duong", data.get("thang_duong", ""), positions)
-        self._draw_field(canvas_obj, "nam_duong", data.get("nam_duong", ""), positions)
-        self._draw_field(canvas_obj, "ngay_am", data.get("ngay_am", ""), positions)
-        self._draw_field(canvas_obj, "thang_am", data.get("thang_am", ""), positions)
-        self._draw_field(canvas_obj, "nam_am", data.get("nam_am", ""), positions)
-        self._draw_field(canvas_obj, "phat_lich", data.get("phat_lich", ""), positions)
-        
-        # In các custom fields
-        for field_name, field_config in customs.items():
-            value = field_config.get("value", "")
-            self._draw_custom_field(canvas_obj, field_config, value)
-    
+
     def create_merged_pdf(self, data_list, output_path, field_positions=None, custom_fields=None, progress_callback=None):
         """
-        Tạo một PDF với nhiều trang từ danh sách dữ liệu
-        
-        Args:
-            data_list: list các dict chứa thông tin cần in
-            output_path: đường dẫn file PDF output
-            field_positions: dict tọa độ các trường
-            custom_fields: dict các custom fields
-            progress_callback: callback để báo tiến độ (current, total)
-        
-        Returns:
-            int: số trang đã tạo
+        Tạo 1 file PDF chứa nhiều trang (mỗi trang 1 bản ghi)
         """
         positions = field_positions or FIELD_POSITIONS
         customs = custom_fields or CUSTOM_FIELDS
         
-        # Tạo canvas PDF
-        if PDF_ORIENTATION == "landscape":
-            pagesize = landscape(A4)
-        else:
-            pagesize = A4
+        is_landscape = (PDF_ORIENTATION == "landscape")
+        pagesize = landscape(A4) if is_landscape else A4
+        page_width, page_height = pagesize
         
         c = canvas.Canvas(output_path, pagesize=pagesize)
+        self.register_font()
+        
         total = len(data_list)
-        page_count = 0
-        
-        for idx, data in enumerate(data_list):
-            # Vẽ nội dung trang
-            self._draw_page_content(c, data, positions, customs)
-            page_count += 1
+        for i, data in enumerate(data_list):
+            c.setFont(self.font_name, 12)
             
-            # Tạo trang mới (trừ trang cuối)
-            if idx < total - 1:
-                c.showPage()
+            # Draw standard fields
+            for field, config in positions.items():
+                if field in data:
+                    self._draw_field(c, data[field], config, page_height)
             
-            # Callback progress
+            # Draw custom fields
+            for field_name, config in customs.items():
+                self._draw_custom_field(c, field_name, config, page_height)
+                
+            c.showPage() # End page
+            
             if progress_callback:
-                progress_callback(idx + 1, total)
-        
-        # Lưu PDF
+                progress_callback(i + 1, total)
+                
         c.save()
-        return page_count
+        return total
 
-    
-    def _draw_field(self, canvas_obj, field_name, text, positions=None):
-        """
-        Vẽ một trường text lên PDF
+    def _draw_field(self, c, text, config, page_height):
+        """Vẽ một trường lên canvas"""
+        if not text: return
         
-        Args:
-            canvas_obj: đối tượng canvas của reportlab
-            field_name: tên trường (key trong FIELD_POSITIONS)
-            text: nội dung cần in
-            positions: dict tọa độ các trường (optional)
-        """
-        if not text or text == "" or str(text).lower() == "nan":
-            return
+        x = config["x"] * mm
+        # ReportLab coordinate system starts from bottom-left
+        # But our config is likely top-left based (common in UI).
+        # Convert y: y_draw = page_height - y_config
+        y = page_height - (config["y"] * mm)
         
-        field_positions = positions or FIELD_POSITIONS
-        field = field_positions.get(field_name)
-        if not field:
-            return
+        size = config.get("size", 12)
+        font_name = self.font_name
         
-        # Convert mm sang points (1mm = 2.834645669 points)
-        x = field["x"] * mm
-        y = (A4_HEIGHT - field["y"]) * mm  # Y đảo ngược (origin ở dưới trái)
+        # Apply Bold/Italic via font switching if available, or just standard font for now.
+        # TTFont registers a single face. To support Bold, we need slightly difference handling or register variants.
+        # For simplicity, assuming the font supports it or we just use size/align.
+        # User config includes 'bold', 'italic'. ReportLab needs 'FontName-Bold'.
+        # Since we only registered 'QuyYFont', we sticking to it.
+        # Maybe simulate bold? c.setTextRenderMode(2)? No.
+        # We will ignore bold/italic for custom font unless we register variants.
         
-        # Set font style
-        font_size = field["size"]
+        c.setFont(font_name, size)
         
-        # Tạo font name với style
-        font_style = self.font_name if self.font_registered else "Helvetica"
+        align = config.get("align", "L")
         
-        # ReportLab không support italic và bold trực tiếp cho TTF
-        # Ta sẽ sử dụng skew để tạo italic effect nếu cần
-        if field.get("italic", False) and field.get("bold", False):
-            # Bold + Italic: không hỗ trợ trực tiếp với TTF custom
-            canvas_obj.setFont(font_style, font_size)
-        elif field.get("italic", False):
-            canvas_obj.setFont(font_style, font_size)
-        elif field.get("bold", False):
-            canvas_obj.setFont(font_style, font_size)
+        if align == "C":
+            c.drawCentredString(x, y, str(text))
+        elif align == "R":
+            c.drawRightString(x, y, str(text))
         else:
-            canvas_obj.setFont(font_style, font_size)
-        
-        # Vẽ text
-        text_str = str(text)
-        
-        # Căn chỉnh text
-        if field.get("align") == "C":
-            # Center align
-            text_width = canvas_obj.stringWidth(text_str, font_style, font_size)
-            x = x - text_width / 2
-        elif field.get("align") == "R":
-            # Right align
-            text_width = canvas_obj.stringWidth(text_str, font_style, font_size)
-            x = x - text_width
-        
-        canvas_obj.drawString(x, y, text_str)
-    
-    def _draw_custom_field(self, canvas_obj, field_config, text):
-        """
-        Vẽ một custom field lên PDF
-        
-        Args:
-            canvas_obj: đối tượng canvas của reportlab
-            field_config: dict cấu hình của field (x, y, size, bold, italic, align)
-            text: nội dung cần in
-        """
-        if not text or text == "" or str(text).lower() == "nan":
-            return
-        
-        # Convert mm sang points
-        x = field_config.get("x", 0) * mm
-        y = (A4_HEIGHT - field_config.get("y", 0)) * mm
-        
-        # Set font
-        font_size = field_config.get("size", 12)
-        font_style = self.font_name if self.font_registered else "Helvetica"
-        canvas_obj.setFont(font_style, font_size)
-        
-        # Vẽ text
-        text_str = str(text)
-        
-        # Căn chỉnh
-        if field_config.get("align") == "C":
-            text_width = canvas_obj.stringWidth(text_str, font_style, font_size)
-            x = x - text_width / 2
-        elif field_config.get("align") == "R":
-            text_width = canvas_obj.stringWidth(text_str, font_style, font_size)
-            x = x - text_width
-        
-        canvas_obj.drawString(x, y, text_str)
+            c.drawString(x, y, str(text))
 
-    
-    
-    # create_batch_pdf and _prepare_data removed - moved to PDFService and DataProcessor
-
-
-# Test
-if __name__ == "__main__":
-    # Test với dữ liệu mẫu
-    test_data = {
-        "phap_danh": "",
-        "ho_ten": "Nguyễn Văn A",
-        "sinh_nam": "1990",
-        "dia_chi": "Hà Nội",
-        "ngay_duong": "2",
-        "thang_duong": "5",
-        "nam_duong": "2025",
-        "ngay_am": "5",
-        "thang_am": "4",
-        "nam_am": "2025",
-        "phat_lich": "2569"
-    }
-    
-    generator = PDFGenerator()
-    generator.create_single_pdf(test_data, "/home/claude/test_output.pdf")
-    print("Test PDF created: /home/claude/test_output.pdf")
+    def _draw_custom_field(self, c, name, config, page_height):
+        """Vẽ custom field"""
+        text = config.get("value", "")
+        # Custom field logic is same structure as standard field
+        self._draw_field(c, text, config, page_height)
