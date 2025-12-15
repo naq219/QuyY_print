@@ -23,12 +23,27 @@ class ConfigManager:
         self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
         self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
         
+        # Dirty flag - theo dõi trạng thái thay đổi chưa lưu
+        self._dirty = False
+        
         # Lấy đường dẫn config file (cùng thư mục exe)
         self.config_path = get_config_path()
         
         # Khởi tạo và load config
         self._init_config()
         self.load()
+    
+    def mark_dirty(self):
+        """Đánh dấu có thay đổi chưa lưu"""
+        self._dirty = True
+    
+    def is_dirty(self):
+        """Kiểm tra có thay đổi chưa lưu không"""
+        return self._dirty
+    
+    def clear_dirty(self):
+        """Xóa trạng thái dirty (sau khi lưu thành công)"""
+        self._dirty = False
 
     def _init_config(self):
         """Khởi tạo file config nếu chưa tồn tại"""
@@ -74,6 +89,7 @@ class ConfigManager:
                 "custom_fields": self.custom_fields
             }
             self._save_file(self.config_path, data)
+            self.clear_dirty()  # Xóa dirty flag sau khi lưu thành công
             print(f"[ConfigManager] Đã lưu config: {self.config_path}")
         except Exception as e:
             raise Exception(f"Lỗi lưu config: {e}")
@@ -107,7 +123,7 @@ class ConfigManager:
             "italic": False,
             "align": align
         }
-        self.save()  # Auto save
+        self.mark_dirty()  # Đánh dấu đã thay đổi, không auto-save
 
     def update_custom_field(self, old_name, new_name, value, x, y, size, align):
         """Cập nhật custom field"""
@@ -126,13 +142,13 @@ class ConfigManager:
             "italic": False,
             "align": align
         }
-        self.save()  # Auto save
+        self.mark_dirty()  # Đánh dấu đã thay đổi, không auto-save
 
     def delete_custom_field(self, name):
         """Xóa custom field"""
         if name in self.custom_fields:
             del self.custom_fields[name]
-            self.save()  # Auto save
+            self.mark_dirty()  # Đánh dấu đã thay đổi, không auto-save
 
     def load_from_file(self, filepath):
         """Load config từ file bên ngoài (import)"""

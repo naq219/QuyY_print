@@ -186,9 +186,9 @@ class CoordinateTab(tk.Frame):
         if is_custom:
             text = conf.get("value", name)
             
-        anchor = tk.NW
-        if align == "C": anchor = tk.N
-        elif align == "R": anchor = tk.NE
+        anchor = tk.SW  # Tọa độ là điểm dưới cùng bên trái
+        if align == "C": anchor = tk.S  # Giữa dưới
+        elif align == "R": anchor = tk.SE  # Dưới cùng bên phải
         
         self.canvas.create_text(
             x_px, y_px, 
@@ -321,12 +321,9 @@ class CoordinateTab(tk.Frame):
             except:
                 pass
             
-            # Auto save
-            try:
-                self.config_manager.save()
-                self.status_var.set(f"Đã lưu vị trí {field_name}: ({new_x_mm}, {new_y_mm})")
-            except Exception as e:
-                self.status_var.set(f"Lỗi lưu: {e}")
+            # Đánh dấu đã thay đổi (không auto-save)
+            self.config_manager.mark_dirty()
+            self.status_var.set(f"*Đã thay đổi {field_name}: ({new_x_mm}, {new_y_mm}) - Chưa lưu*")
 
     def _on_tree_edit(self, event):
         item = self.tree.selection()
@@ -362,5 +359,6 @@ class CoordinateTab(tk.Frame):
                 else:
                     conf[key] = new_val
         
-        self.config_manager.save() # Auto save edit
+        self.config_manager.mark_dirty()  # Đánh dấu thay đổi, không auto-save
+        self.status_var.set(f"*Đã thay đổi - Chưa lưu*")
         self.refresh()

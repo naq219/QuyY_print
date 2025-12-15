@@ -36,6 +36,9 @@ class MainWindow:
         self._build_menu()
         self._build_layout()
         
+        # 4. Xử lý khi đóng cửa sổ
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
     def _build_menu(self):
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
@@ -47,7 +50,27 @@ class MainWindow:
         file_menu.add_separator()
         file_menu.add_command(label="Reset Mặc Định", command=self.reset_config)
         file_menu.add_separator()
-        file_menu.add_command(label="Thoát", command=self.root.quit)
+        file_menu.add_command(label="Thoát", command=self.on_closing)
+    
+    def on_closing(self):
+        """Xử lý khi thoát app - hỏi lưu nếu có thay đổi chưa lưu"""
+        if self.config_manager.is_dirty():
+            result = messagebox.askyesnocancel(
+                "Lưu cấu hình?",
+                "Bạn có thay đổi chưa lưu.\nBạn có muốn lưu cấu hình trước khi thoát?"
+            )
+            if result is True:  # Yes - Lưu và thoát
+                try:
+                    self.config_manager.save()
+                except Exception as e:
+                    messagebox.showerror("Lỗi lưu", str(e))
+                    return  # Không thoát nếu lưu thất bại
+                self.root.destroy()
+            elif result is False:  # No - Thoát không lưu
+                self.root.destroy()
+            # Cancel - Không làm gì, ở lại app
+        else:
+            self.root.destroy()
         
     def _build_layout(self):
         # Header
