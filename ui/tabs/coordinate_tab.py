@@ -13,17 +13,17 @@ CANVAS_WIDTH = int(A4_WIDTH_MM * SCALE)
 CANVAS_HEIGHT = int(A4_HEIGHT_MM * SCALE)
 
 SAMPLE_DATA = {
-    "phap_danh": "TÂM AN",
-    "ho_ten": "NGUYỄN VĂN A",
-    "sinh_nam": "1990",
-    "dia_chi": "Hà Nội, Việt Nam",
-    "ngay_duong": "15",
-    "thang_duong": "07",
-    "nam_duong": "2025",
-    "ngay_am": "15",
-    "thang_am": "06",
-    "nam_am": "Ất Tỵ",
-    "phat_lich": "2569"
+    "phap_danh": "Pháp danh",
+    "ho_ten": "Họ tên",
+    "sinh_nam": "Năm sinh",
+    "dia_chi": "Địa chỉ (vd xóm 3, xã Nam Sơn, huyện Nam Sơn, tỉnh Hưng Yên)",
+    "ngay_duong": "Ngày DL",
+    "thang_duong": "Tháng DL",
+    "nam_duong": "Năm DL",
+    "ngay_am": "Ngày AL",
+    "thang_am": "Tháng AL",
+    "nam_am": "Năm AL",
+    "phat_lich": "PLịch"
 }
 
 class CoordinateTab(tk.Frame):

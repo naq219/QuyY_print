@@ -14,7 +14,11 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Build file .exe...
-pyinstaller --onefile --windowed --name "QuyYPrinter" --add-data "fonts;fonts" main.py
+pyinstaller --onefile --windowed --name "QuyYPrinter" ^
+  --add-data "phoimau.jpg;." ^
+  --add-data "quyyfont.ttf;." ^
+  main.py
+
 if errorlevel 1 (
     echo Loi: Khong the build exe!
     pause

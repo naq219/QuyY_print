@@ -1,16 +1,16 @@
 {
   "field_positions": {
     "phap_danh": {
-      "x": 229.4,
-      "y": 120.6,
+      "x": 199.4,
+      "y": 135.4,
       "size": 18,
       "bold": false,
       "italic": true,
       "align": "L"
     },
     "ho_ten": {
-      "x": 219.8,
-      "y": 84.6,
+      "x": 199.0,
+      "y": 123.0,
       "size": 18,
       "bold": false,
       "italic": true,
