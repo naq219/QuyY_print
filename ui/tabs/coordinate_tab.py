@@ -73,7 +73,7 @@ class CoordinateTab(tk.Frame):
         self.tree.bind("<Double-1>", self._on_tree_edit)
 
     def _load_bg(self):
-        bg_path = os.path.join("file", "bg_template.png")
+        bg_path = os.path.join("", "bg_template.png")
         if os.path.exists(bg_path):
             try:
                 img = Image.open(bg_path)
