@@ -1,0 +1,99 @@
+{
+  "field_positions": {
+    "phap_danh": {
+      "x": 229.4,
+      "y": 120.6,
+      "size": 18,
+      "bold": false,
+      "italic": true,
+      "align": "L"
+    },
+    "ho_ten": {
+      "x": 219.8,
+      "y": 84.6,
+      "size": 18,
+      "bold": false,
+      "italic": true,
+      "align": "L"
+    },
+    "sinh_nam": {
+      "x": 85,
+      "y": 157,
+      "size": 12,
+      "bold": false,
+      "italic": true,
+      "align": "L"
+    },
+    "dia_chi": {
+      "x": 85,
+      "y": 165,
+      "size": 12,
+      "bold": true,
+      "italic": true,
+      "align": "L"
+    },
+    "ngay_duong": {
+      "x": 110,
+      "y": 198,
+      "size": 11,
+      "bold": false,
+      "italic": true,
+      "align": "C"
+    },
+    "thang_duong": {
+      "x": 130,
+      "y": 198,
+      "size": 11,
+      "bold": false,
+      "italic": true,
+      "align": "C"
+    },
+    "nam_duong": {
+      "x": 155,
+      "y": 198,
+      "size": 11,
+      "bold": false,
+      "italic": true,
+      "align": "C"
+    },
+    "ngay_am": {
+      "x": 110,
+      "y": 206,
+      "size": 11,
+      "bold": false,
+      "italic": true,
+      "align": "C"
+    },
+    "thang_am": {
+      "x": 130,
+      "y": 206,
+      "size": 11,
+      "bold": false,
+      "italic": true,
+      "align": "C"
+    },
+    "nam_am": {
+      "x": 155,
+      "y": 206,
+      "size": 11,
+      "bold": true,
+      "italic": true,
+      "align": "C"
+    },
+    "phat_lich": {
+      "x": 155,
+      "y": 214,
+      "size": 11,
+      "bold": true,
+      "italic": true,
+      "align": "C"
+    }
+  },
+  "excel_mapping": {
+    "ho_ten": "hovaten",
+    "phap_danh": "phapdanh",
+    "nam_sinh": "namsinh",
+    "dia_chi": "diachithuongtru_short",
+    "ngay_quy_y": "dauthoigian"
+  }
+}

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import tkinter as tk
-from tkinter import ttk, simpledialog, messagebox
+from tkinter import ttk, simpledialog, messagebox, filedialog
 from PIL import Image, ImageTk
 import os
+import shutil
 
 # Constants
 A4_WIDTH_MM = 297
@@ -42,13 +43,12 @@ class CoordinateTab(tk.Frame):
         canvas_frame = tk.Frame(self)
         canvas_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Center the canvas
         self.canvas = tk.Canvas(canvas_frame, width=CANVAS_WIDTH, height=CANVAS_HEIGHT, bg="#e0e0e0", relief="sunken", borderwidth=1)
         self.canvas.pack(anchor=tk.CENTER)
         
         self._load_bg()
         
-        # 2. Controls / List Area
+        # 2. Controls
         controls_frame = tk.LabelFrame(self, text="Danh sách Fields (Kéo thả trên hình hoặc sửa số liệu bên dưới)", height=200)
         controls_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
         
@@ -71,35 +71,80 @@ class CoordinateTab(tk.Frame):
         self.canvas.tag_bind("field", "<ButtonRelease-1>", self.on_release)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.tree.bind("<Double-1>", self._on_tree_edit)
+        
+        # Context menu for BG? Or Button? Click logic handles it if missing.
+        # Add a button just in case
+        btn = tk.Button(canvas_frame, text="Thay đổi Ảnh Nền", command=self._select_bg_image, font=("Arial", 8))
+        btn.place(relx=1.0, rely=0.0, anchor=tk.NE)
 
     def _load_bg(self):
-        bg_path = os.path.join("", "bg_template.png")
-        if os.path.exists(bg_path):
+        self.canvas.delete("bg") # Clear old bg
+        self.canvas.delete("select_bg")
+        
+        # Search for phoimau.png / jpg
+        found_bg = None
+        for ext in [".png", ".jpg", ".jpeg"]:
+            path = f"phoimau{ext}"
+            if os.path.exists(path):
+                found_bg = path
+                break
+        
+        if found_bg:
             try:
-                img = Image.open(bg_path)
+                img = Image.open(found_bg)
                 img = img.resize((CANVAS_WIDTH, CANVAS_HEIGHT), Image.Resampling.LANCZOS)
                 self.tk_bg_image = ImageTk.PhotoImage(img)
                 self.canvas.create_image(0, 0, image=self.tk_bg_image, anchor=tk.NW, tags="bg")
+                self.canvas.tag_lower("bg") # Ensure it's at bottom
             except Exception as e:
                 print(f"Error loading bg: {e}")
-                self.canvas.create_text(CANVAS_WIDTH//2, CANVAS_HEIGHT//2, text="No Background Image")
+                self._draw_bg_placeholder()
         else:
-            self.canvas.create_text(CANVAS_WIDTH//2, CANVAS_HEIGHT//2, text="File ảnh nền không tồn tại\nfile/bg_template.png")
+            self._draw_bg_placeholder()
+            
+    def _draw_bg_placeholder(self):
+        cx, cy = CANVAS_WIDTH // 2, CANVAS_HEIGHT // 2
+        text_id = self.canvas.create_text(cx, cy, text="Chưa có ảnh nền 'phoimau.png'.\nClick để chọn ảnh...", 
+                                font=("Arial", 14), fill="#555", tags="select_bg")
+        self.canvas.tag_bind("select_bg", "<Button-1>", self._select_bg_image)
+
+    def _select_bg_image(self, event=None):
+        path = filedialog.askopenfilename(title="Chọn ảnh nền phôi", filetypes=[("Image Files", "*.png *.jpg *.jpeg")])
+        if path:
+            ext = os.path.splitext(path)[1].lower()
+            # Valid ext?
+            if ext not in [".png", ".jpg", ".jpeg"]:
+                messagebox.showerror("Lỗi", "Chỉ hỗ trợ file ảnh png, jpg.")
+                return
+            
+            dest = f"phoimau{ext}"
+            try:
+                # Remove old files if mismatch ext
+                for old_ext in [".png", ".jpg", ".jpeg"]:
+                    old_path = f"phoimau{old_ext}"
+                    if os.path.exists(old_path) and old_path != dest:
+                        os.remove(old_path)
+                
+                shutil.copy2(path, dest)
+                self.status_var.set("Đã cập nhật ảnh nền.")
+                self._load_bg()
+                self.refresh() # Redraw fields on top
+            except Exception as e:
+                messagebox.showerror("Lỗi copy file", str(e))
 
     def refresh(self):
         self.canvas.delete("field")
         for item in self.tree.get_children():
             self.tree.delete(item)
             
-        # Standard
+        # Draw Standard
         for name, conf in self.config_manager.field_positions.items():
             self._draw_field(name, conf, is_custom=False)
             
-        # Custom
+        # Draw Custom
         for name, conf in self.config_manager.custom_fields.items():
             self._draw_field(name, conf, is_custom=True)
             
-        # Raise fields to top
         self.canvas.tag_raise("field")
 
     def _draw_field(self, name, conf, is_custom=False):
@@ -119,7 +164,7 @@ class CoordinateTab(tk.Frame):
         if align == "C": anchor = tk.N
         elif align == "R": anchor = tk.NE
         
-        item_id = self.canvas.create_text(
+        self.canvas.create_text(
             x_px, y_px, 
             text=text, 
             font=("Arial", int(size * 0.8), "bold" if is_custom else "normal"), 
@@ -141,7 +186,7 @@ class CoordinateTab(tk.Frame):
                 if tag != "field" and tag != "current":
                     self.drag_data["field"] = tag
                     break
-            self.canvas.itemconfig(item, fill="#00ff00") # Highlight drag
+            self.canvas.itemconfig(item, fill="#00ff00")
 
     def on_drag(self, event):
         item = self.drag_data["item"]
@@ -161,7 +206,6 @@ class CoordinateTab(tk.Frame):
             new_x_mm = round(coords[0] / SCALE, 1)
             new_y_mm = round(coords[1] / SCALE, 1)
             
-            # Update config
             conf = None
             is_custom = False
             if name in self.config_manager.field_positions:
@@ -177,7 +221,16 @@ class CoordinateTab(tk.Frame):
                 self.canvas.itemconfig(item, fill="blue" if not is_custom else "red")
                 self.tree.set(name, "X", f"{new_x_mm:.1f}")
                 self.tree.set(name, "Y", f"{new_y_mm:.1f}")
-                self.status_var.set(f"Cập nhật {name}: ({new_x_mm}, {new_y_mm})")
+                
+                # Auto Save on Release?
+                # ConfigManager modifies in memory. Auto save is cleaner for "Interactive" usage.
+                # But ConfigManager doesn't have "save()" called on access.
+                # I should call self.config_manager.save() explicitly.
+                try:
+                    self.config_manager.save()
+                    self.status_var.set(f"Đã lưu vị trí {name}: ({new_x_mm}, {new_y_mm})")
+                except Exception as e:
+                    self.status_var.set(f"Lỗi lưu: {e}")
 
         self.drag_data["item"] = None
         self.drag_data["field"] = None
@@ -189,7 +242,7 @@ class CoordinateTab(tk.Frame):
         col = self.tree.identify_column(event.x)
         idx = int(col[1:]) - 1
         
-        if idx == 0: return # Name
+        if idx == 0: return 
         
         conf = None
         if name in self.config_manager.field_positions:
@@ -216,5 +269,5 @@ class CoordinateTab(tk.Frame):
                 else:
                     conf[key] = new_val
         
-        # Refresh to update canvas
+        self.config_manager.save() # Auto save edit
         self.refresh()
