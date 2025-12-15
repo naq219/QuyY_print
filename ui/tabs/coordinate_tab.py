@@ -29,6 +29,9 @@ SAMPLE_DATA = {
 }
 
 class CoordinateTab(tk.Frame):
+    # Số pixel di chuyển khi bấm phím mũi tên
+    ARROW_MOVE_PX = 1
+    
     def __init__(self, parent, config_manager, status_var):
         super().__init__(parent)
         self.config_manager = config_manager
@@ -36,6 +39,10 @@ class CoordinateTab(tk.Frame):
         self.bg_image = None
         self.tk_bg_image = None
         self.drag_data = {"x": 0, "y": 0, "item": None, "field": None}
+        
+        # Field đang được chọn (highlight) để điều khiển bằng phím
+        self.selected_item = None
+        self.selected_field = None
         
         self._build_ui()
         self.refresh()
@@ -68,11 +75,22 @@ class CoordinateTab(tk.Frame):
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Bindings
+        # Bindings cho chuột
         self.canvas.tag_bind("field", "<ButtonPress-1>", self.on_press)
         self.canvas.tag_bind("field", "<ButtonRelease-1>", self.on_release)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.tree.bind("<Double-1>", self._on_tree_edit)
+        
+        # Bindings cho phím mũi tên (điều khiển field đã chọn)
+        # Bind vào canvas để nhận keyboard events
+        self.canvas.bind("<Left>", self.on_arrow_key)
+        self.canvas.bind("<Right>", self.on_arrow_key)
+        self.canvas.bind("<Up>", self.on_arrow_key)
+        self.canvas.bind("<Down>", self.on_arrow_key)
+        self.canvas.bind("<Escape>", self.on_deselect)
+        
+        # Cho phép canvas nhận focus
+        self.canvas.config(takefocus=True)
         
         # Context menu for BG? Or Button? Click logic handles it if missing.
         # Add a button just in case
@@ -187,14 +205,32 @@ class CoordinateTab(tk.Frame):
         item = self.canvas.find_closest(event.x, event.y)[0]
         tags = self.canvas.gettags(item)
         if "field" in tags:
+            # Bỏ highlight field cũ (nếu có)
+            if self.selected_item and self.selected_item != item:
+                self._unhighlight_field(self.selected_item, self.selected_field)
+            
             self.drag_data["item"] = item
             self.drag_data["x"] = event.x
             self.drag_data["y"] = event.y
+            
+            # Tìm tên field
+            field_name = None
             for tag in tags:
                 if tag != "field" and tag != "current":
-                    self.drag_data["field"] = tag
+                    field_name = tag
                     break
-            self.canvas.itemconfig(item, fill="#00ff00")
+            
+            self.drag_data["field"] = field_name
+            
+            # Highlight và lưu selection để điều khiển bằng phím
+            self.selected_item = item
+            self.selected_field = field_name
+            self.canvas.itemconfig(item, fill="#00ff00")  # Highlight màu xanh lá
+            
+            # Focus vào canvas để nhận keyboard events
+            self.canvas.focus_set()
+            
+            self.status_var.set(f"Đã chọn: {field_name} - Dùng phím mũi tên để di chuyển")
 
     def on_drag(self, event):
         item = self.drag_data["item"]
@@ -214,34 +250,83 @@ class CoordinateTab(tk.Frame):
             new_x_mm = round(coords[0] / SCALE, 1)
             new_y_mm = round(coords[1] / SCALE, 1)
             
-            conf = None
-            is_custom = False
-            if name in self.config_manager.field_positions:
-                conf = self.config_manager.field_positions[name]
-            elif name in self.config_manager.custom_fields:
-                conf = self.config_manager.custom_fields[name]
-                is_custom = True
-            
-            if conf:
-                conf["x"] = new_x_mm
-                conf["y"] = new_y_mm
-                
-                self.canvas.itemconfig(item, fill="blue" if not is_custom else "red")
-                self.tree.set(name, "X", f"{new_x_mm:.1f}")
-                self.tree.set(name, "Y", f"{new_y_mm:.1f}")
-                
-                # Auto Save on Release?
-                # ConfigManager modifies in memory. Auto save is cleaner for "Interactive" usage.
-                # But ConfigManager doesn't have "save()" called on access.
-                # I should call self.config_manager.save() explicitly.
-                try:
-                    self.config_manager.save()
-                    self.status_var.set(f"Đã lưu vị trí {name}: ({new_x_mm}, {new_y_mm})")
-                except Exception as e:
-                    self.status_var.set(f"Lỗi lưu: {e}")
+            self._update_field_position(name, new_x_mm, new_y_mm)
 
+        # Reset drag data nhưng GIỮ NGUYÊN selection để có thể dùng phím mũi tên
         self.drag_data["item"] = None
         self.drag_data["field"] = None
+    
+    def on_arrow_key(self, event):
+        """Xử lý phím mũi tên để di chuyển field đã chọn"""
+        if not self.selected_item or not self.selected_field:
+            return
+        
+        # Xác định hướng di chuyển
+        dx, dy = 0, 0
+        if event.keysym == "Left":
+            dx = -self.ARROW_MOVE_PX
+        elif event.keysym == "Right":
+            dx = self.ARROW_MOVE_PX
+        elif event.keysym == "Up":
+            dy = -self.ARROW_MOVE_PX
+        elif event.keysym == "Down":
+            dy = self.ARROW_MOVE_PX
+        
+        # Di chuyển item trên canvas
+        self.canvas.move(self.selected_item, dx, dy)
+        
+        # Cập nhật vị trí mới vào config
+        coords = self.canvas.coords(self.selected_item)
+        new_x_mm = round(coords[0] / SCALE, 1)
+        new_y_mm = round(coords[1] / SCALE, 1)
+        
+        self._update_field_position(self.selected_field, new_x_mm, new_y_mm)
+    
+    def on_deselect(self, event=None):
+        """Bỏ chọn field (nhấn Escape)"""
+        if self.selected_item and self.selected_field:
+            self._unhighlight_field(self.selected_item, self.selected_field)
+            self.selected_item = None
+            self.selected_field = None
+            self.status_var.set("Đã bỏ chọn field")
+    
+    def _unhighlight_field(self, item, field_name):
+        """Trả lại màu gốc cho field"""
+        is_custom = field_name in self.config_manager.custom_fields
+        original_color = "red" if is_custom else "blue"
+        try:
+            self.canvas.itemconfig(item, fill=original_color)
+        except:
+            pass
+    
+    def _update_field_position(self, field_name, new_x_mm, new_y_mm):
+        """Cập nhật vị trí field vào config và lưu"""
+        conf = None
+        is_custom = False
+        
+        if field_name in self.config_manager.field_positions:
+            conf = self.config_manager.field_positions[field_name]
+        elif field_name in self.config_manager.custom_fields:
+            conf = self.config_manager.custom_fields[field_name]
+            is_custom = True
+        
+        if conf:
+            conf["x"] = new_x_mm
+            conf["y"] = new_y_mm
+            
+            # Cập nhật tree view
+            try:
+                self.tree.set(field_name, "X", f"{new_x_mm:.1f}")
+                self.tree.set(field_name, "Y", f"{new_y_mm:.1f}")
+            except:
+                pass
+            
+            # Auto save
+            try:
+                self.config_manager.save()
+                self.status_var.set(f"Đã lưu vị trí {field_name}: ({new_x_mm}, {new_y_mm})")
+            except Exception as e:
+                self.status_var.set(f"Lỗi lưu: {e}")
 
     def _on_tree_edit(self, event):
         item = self.tree.selection()
