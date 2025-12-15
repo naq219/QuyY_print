@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Ứng dụng in lá phái quy y - Entry Point
+Ứng dụng in lá phái quy y - Entry Point (Refactored)
 """
 
 import tkinter as tk
-from app import QuyYPrinterApp
+from ui.main_window import MainWindow
 
 
 def main():
     """Hàm main - khởi động ứng dụng"""
     root = tk.Tk()
-    app = QuyYPrinterApp(root)
+    app = MainWindow(root)
     root.mainloop()
 
 

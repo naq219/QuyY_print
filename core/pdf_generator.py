@@ -1,18 +1,19 @@
-# -*- coding: utf-8 -*-
-"""
-Module tạo PDF cho lá phái quy y
-Sử dụng reportlab để tạo PDF với font Unicode
-"""
-
 import os
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
-from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
-from lunar_converter import LunarConverter
-import pandas as pd
+# Since we run from root, 'config' is available. 
+# If running as package, might need '..config' but absolute import 'config' is better if PYTHONPATH includes root.
+try:
+    from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+except ImportError:
+    # Fallback for testing inside core/
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import FIELD_POSITIONS, FONT_FILE, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
+
 
 
 
@@ -240,106 +241,8 @@ class PDFGenerator:
         canvas_obj.drawString(x, y, text_str)
 
     
-    def create_batch_pdf(self, excel_path, output_dir, progress_callback=None):
-        """
-        Tạo PDF hàng loạt từ file Excel
-        
-        Args:
-            excel_path: đường dẫn file Excel
-            output_dir: thư mục chứa các file PDF output
-            progress_callback: hàm callback để báo tiến độ (nhận 2 params: current, total)
-        
-        Returns:
-            tuple: (số file thành công, số file lỗi, danh sách lỗi)
-        """
-        # Đọc Excel
-        df = pd.read_excel(excel_path)
-        
-        # Lọc bỏ dòng header nếu có
-        df = df[df['hovaten'].notna()]
-        
-        success_count = 0
-        error_count = 0
-        errors = []
-        
-        total = len(df)
-        
-        # Tạo thư mục output nếu chưa có
-        os.makedirs(output_dir, exist_ok=True)
-        
-        for idx, row in df.iterrows():
-            try:
-                # Chuẩn bị dữ liệu
-                data = self._prepare_data(row)
-                
-                # Tạo tên file
-                ho_ten = str(row.get('hovaten', f'person_{idx}')).strip()
-                safe_filename = "".join(c for c in ho_ten if c.isalnum() or c in (' ', '_')).strip()
-                output_path = os.path.join(output_dir, f"{safe_filename}_{idx}.pdf")
-                
-                # Tạo PDF
-                self.create_single_pdf(data, output_path)
-                success_count += 1
-                
-            except Exception as e:
-                error_count += 1
-                errors.append(f"Dòng {idx}: {str(e)}")
-            
-            # Callback progress
-            if progress_callback:
-                progress_callback(idx + 1, total)
-        
-        return success_count, error_count, errors
     
-    def _prepare_data(self, row):
-        """
-        Chuẩn bị dữ liệu từ row Excel
-        
-        Args:
-            row: pandas Series (một dòng trong DataFrame)
-        
-        Returns:
-            dict: dữ liệu đã chuẩn bị để in
-        """
-        # Lấy thông tin cơ bản
-        phap_danh = row.get('phapdanh')
-        ho_ten = row.get('hovaten', '')
-        nam_sinh = row.get('namsinh', '')
-        dia_chi = row.get('diachithuongtru_short', '')
-        ngay_quy_y = row.get('dauthoigian', '')
-        
-        # Xử lý pháp danh (nếu không có thì để trống)
-        if pd.isna(phap_danh) or str(phap_danh).strip() == '':
-            phap_danh = ""
-        
-        # Chuyển đổi ngày tháng
-        if ngay_quy_y and not pd.isna(ngay_quy_y):
-            date_info = LunarConverter.convert_date(str(ngay_quy_y))
-        else:
-            # Mặc định
-            date_info = {
-                'solar_day': '',
-                'solar_month': '',
-                'solar_year': '',
-                'lunar_day': '',
-                'lunar_month': '',
-                'lunar_year': '',
-                'buddhist_year': ''
-            }
-        
-        return {
-            "phap_danh": phap_danh,
-            "ho_ten": ho_ten if not phap_danh else "",  # Nếu có pháp danh thì không in họ tên
-            "sinh_nam": str(nam_sinh) if not pd.isna(nam_sinh) else "",
-            "dia_chi": str(dia_chi) if not pd.isna(dia_chi) else "",
-            "ngay_duong": str(date_info['solar_day']) if date_info['solar_day'] else "",
-            "thang_duong": str(date_info['solar_month']) if date_info['solar_month'] else "",
-            "nam_duong": str(date_info['solar_year']) if date_info['solar_year'] else "",
-            "ngay_am": str(date_info['lunar_day']) if date_info['lunar_day'] else "",
-            "thang_am": str(date_info['lunar_month']) if date_info['lunar_month'] else "",
-            "nam_am": str(date_info['lunar_year']) if date_info['lunar_year'] else "",
-            "phat_lich": str(date_info['buddhist_year']) if date_info['buddhist_year'] else ""
-        }
+    # create_batch_pdf and _prepare_data removed - moved to PDFService and DataProcessor
 
 
 # Test
