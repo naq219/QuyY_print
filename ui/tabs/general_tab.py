@@ -12,6 +12,7 @@ except ImportError:
     HAS_TKCALENDAR = False
 
 from core.lunar_converter import LunarConverter
+from ui.components.toast import ToastNotification
 
 class GeneralTab(tk.Frame):
     def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
@@ -165,7 +166,7 @@ class GeneralTab(tk.Frame):
         try:
             self.config_manager.set_selected_date(date_str)
             self._update_lunar_display(date_str)
-            messagebox.showinfo("Thành công", f"Đã chọn ngày quy y: {date_str}")
+            ToastNotification.success(self, f"Đã chọn ngày quy y: {date_str}")
         except Exception as e:
             messagebox.showerror("Lỗi", f"Không thể convert ngày: {str(e)}")
 
@@ -190,7 +191,7 @@ class GeneralTab(tk.Frame):
             self.date_entry.delete(0, tk.END)
         else:
             self.date_var.set("")
-        messagebox.showinfo("Thông báo", "Đã xóa ngày quy y")
+        ToastNotification.info(self, "Đã xóa ngày quy y")
 
     def _browse_excel(self):
         filename = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")])

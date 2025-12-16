@@ -11,6 +11,7 @@ import tempfile
 
 from core.data_processor import DataProcessor
 from core.resource_manager import get_app_dir, get_phoimau_path
+from ui.components.toast import ToastNotification
 
 # Constants - Scale giống CoordinateTab
 A4_WIDTH_MM = 297
@@ -267,10 +268,10 @@ class PrintPreviewWindow(tk.Toplevel):
             
             # Print
             self.pdf_service.print_file(temp_path)
-            messagebox.showinfo("Thành công", f"Đã gửi lệnh in cho: {record['name']}")
+            ToastNotification.show(self, f"✅ Đã gửi lệnh in: {record['name'][:30]}", position="bottom")
             
         except Exception as e:
-            messagebox.showerror("Lỗi in", str(e))
+            ToastNotification.show(self, f"❌ Lỗi in: {str(e)[:50]}", bg_color="#e74c3c", position="bottom")
             
     def on_save_pdf(self):
         """Lưu PDF record hiện tại"""
@@ -300,6 +301,7 @@ class PrintPreviewWindow(tk.Toplevel):
                 custom_fields=self.config_manager.custom_fields,
                 use_vni=use_vni
             )
-            messagebox.showinfo("Thành công", f"Đã lưu: {filepath}")
+            ToastNotification.show(self, f"✅ Đã lưu file PDF!", position="bottom")
         except Exception as e:
-            messagebox.showerror("Lỗi", str(e))
+            ToastNotification.show(self, f"❌ Lỗi lưu: {str(e)[:50]}", bg_color="#e74c3c", position="bottom")
+

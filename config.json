@@ -50,7 +50,7 @@
       "align": "L"
     },
     "ngay_duong": {
-      "value": "",
+      "value": "10",
       "x": 235.2,
       "y": 178.4,
       "size": 11,
@@ -59,7 +59,7 @@
       "align": "C"
     },
     "thang_duong": {
-      "value": "",
+      "value": "12",
       "x": 259.6,
       "y": 178.0,
       "size": 11,
@@ -68,7 +68,7 @@
       "align": "C"
     },
     "nam_duong": {
-      "value": "",
+      "value": "2025",
       "x": 276.6,
       "y": 178.0,
       "size": 11,
@@ -77,7 +77,7 @@
       "align": "C"
     },
     "ngay_am": {
-      "value": "",
+      "value": "21",
       "x": 235.6,
       "y": 182.8,
       "size": 11,
@@ -86,7 +86,7 @@
       "align": "C"
     },
     "thang_am": {
-      "value": "",
+      "value": "10",
       "x": 259.2,
       "y": 182.8,
       "size": 11,
@@ -95,7 +95,7 @@
       "align": "C"
     },
     "nam_am": {
-      "value": "",
+      "value": "Ất Tỵ",
       "x": 277.8,
       "y": 183.6,
       "size": 11,
@@ -104,7 +104,7 @@
       "align": "C"
     },
     "phat_lich": {
-      "value": "",
+      "value": "2569",
       "x": 155,
       "y": 214,
       "size": 11,
@@ -113,6 +113,6 @@
       "align": "C"
     }
   },
-  "selected_date": null,
+  "selected_date": "2025-12-10",
   "use_vni_font": true
 }

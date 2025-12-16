@@ -6,6 +6,7 @@ import os
 import shutil
 
 from core.resource_manager import get_app_dir, get_phoimau_path
+from ui.components.toast import ToastNotification
 
 # Constants
 A4_WIDTH_MM = 297
@@ -458,8 +459,7 @@ class CoordinateTab(tk.Frame):
         try:
             self.config_manager.save()
             self.status_var.set("✅ Đã lưu cấu hình thành công!")
-            from tkinter import messagebox
-            messagebox.showinfo("Thành công", "Đã lưu cấu hình!")
+            ToastNotification.success(self, "Đã lưu cấu hình!")
         except Exception as e:
             from tkinter import messagebox
             messagebox.showerror("Lỗi", f"Không thể lưu cấu hình: {str(e)}")
