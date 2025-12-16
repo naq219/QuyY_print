@@ -59,14 +59,17 @@ class PDFService:
                 # SINGLE PDF MODE
                 data_list = []
                 for idx, row in df.iterrows():
-                    try:
-                        data = DataProcessor.process_row(row)
-                        data_list.append(data)
-                        if progress_callback:
-                             progress_callback(idx + 1, total * 2) # 50% for prep
-                    except Exception as e:
+                    # Không try-except để bắt exception - DataProcessor sẽ xử lý lỗi nội bộ
+                    data = DataProcessor.process_row(row, idx)
+                    data_list.append(data)
+                    
+                    # Đếm lỗi nếu có
+                    if data.get('_has_error', False):
                         error_count += 1
-                        errors.append(f"Lỗi dữ liệu dòng {idx}: {str(e)}")
+                        errors.append(f"Dòng {data.get('_row_index', idx+2)}: {'; '.join(data.get('_error_details', []))}")
+                    
+                    if progress_callback:
+                         progress_callback(idx + 1, total * 2) # 50% for prep
                 
                 if data_list:
                     try:
@@ -93,7 +96,13 @@ class PDFService:
                 # MULTIPLE FILES MODE
                 for idx, row in df.iterrows():
                     try:
-                        data = DataProcessor.process_row(row)
+                        # DataProcessor xử lý lỗi nội bộ, không throw exception
+                        data = DataProcessor.process_row(row, idx)
+                        
+                        # Đếm lỗi nếu có (nhưng vẫn tạo PDF)
+                        if data.get('_has_error', False):
+                            error_count += 1
+                            errors.append(f"Dòng {data.get('_row_index', idx+2)}: {'; '.join(data.get('_error_details', []))}")
                         
                         ho_ten = str(row.get('hovaten', f'person_{idx}')).strip()
                         
@@ -104,6 +113,8 @@ class PDFService:
                         else:
                             # Export file: keep readability
                             safe_filename = "".join(c for c in ho_ten if c.isalnum() or c in (' ', '_')).strip()
+                            if not safe_filename:
+                                safe_filename = f"record_{idx}"
                             
                         output_path = os.path.join(work_dir, f"{safe_filename}.pdf")
                         
@@ -117,8 +128,9 @@ class PDFService:
                         success_count += 1
                         generated_files.append(output_path)
                     except Exception as e:
+                        # Lỗi tạo PDF (không phải lỗi dữ liệu)
                         error_count += 1
-                        errors.append(f"Dòng {idx}: {str(e)}")
+                        errors.append(f"Lỗi tạo PDF dòng {idx+2}: {str(e)}")
                     
                     if progress_callback:
                         progress_callback(idx + 1, total)

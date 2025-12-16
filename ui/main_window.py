@@ -141,9 +141,17 @@ class MainWindow:
     def on_excel_selected(self, filepath):
         self.excel_var.set(filepath)
         try:
-            count, _ = ExcelHandler.read_file(filepath)
+            count, df = ExcelHandler.read_file(filepath)
             self.count_var.set(f"{count} bản ghi")
             self.status_var.set("Đã load file Excel")
+            
+            # Validate Excel file
+            warnings = ExcelHandler.validate_excel(df)
+            if warnings['has_warnings']:
+                warning_msg = ExcelHandler.format_validation_message(warnings)
+                messagebox.showwarning("Cảnh báo dữ liệu", warning_msg)
+                self.status_var.set(f"Đã load - {warnings['summary']}")
+            
         except Exception as e:
             self.count_var.set("ERROR")
             messagebox.showerror("Lỗi đọc file", str(e))
@@ -167,6 +175,14 @@ class MainWindow:
             _, df = ExcelHandler.read_file(excel_path)
             mode = self.export_mode_var.get()
             
+            # Validate trước khi xuất
+            warnings = ExcelHandler.validate_excel(df)
+            if warnings['has_warnings']:
+                warning_msg = ExcelHandler.format_validation_message(warnings)
+                if not messagebox.askyesno("Cảnh báo dữ liệu", 
+                    warning_msg + "\n\nBạn có muốn tiếp tục xuất PDF không?"):
+                    return
+            
             self.lock_ui()
             self.status_var.set("Đang xuất PDF...")
             self.progress_bar['value'] = 0
@@ -180,6 +196,7 @@ class MainWindow:
                 completion_callback=self.on_process_finished
             )
         except Exception as e:
+            self.unlock_ui()
             messagebox.showerror("Lỗi", str(e))
 
     def on_print(self):
@@ -195,6 +212,14 @@ class MainWindow:
             
         try:
             _, df = ExcelHandler.read_file(excel_path)
+            
+            # Validate trước khi in
+            warnings = ExcelHandler.validate_excel(df)
+            if warnings['has_warnings']:
+                warning_msg = ExcelHandler.format_validation_message(warnings)
+                if not messagebox.askyesno("Cảnh báo dữ liệu", 
+                    warning_msg + "\n\nBạn có muốn tiếp tục in không?"):
+                    return
             
             # Mở cửa sổ preview thay vì in batch
             from ui.components.print_preview import PrintPreviewWindow
