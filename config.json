@@ -1,7 +1,7 @@
 {
   "field_positions": {
     "phap_danh": {
-      "x": 196.6,
+      "x": 198.2,
       "y": 139.0,
       "size": 18,
       "bold": false,
@@ -39,7 +39,6 @@
     "nam_sinh": "namsinh",
     "dia_chi": "diachithuongtru_short"
   },
-  "selected_date": null,
   "custom_fields": {
     "pl": {
       "value": "2611",
@@ -114,5 +113,6 @@
       "align": "C"
     }
   },
-  "font_encoding": "tcvn3"
+  "selected_date": null,
+  "use_vni_font": true
 }
