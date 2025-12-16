@@ -15,6 +15,9 @@ class SettingsTab(tk.Frame):
         self.use_vni_var = tk.BooleanVar(value=getattr(self.config_manager, "use_vni_font", True))
         self.use_vni_var.trace("w", self._on_vni_change)
         
+        # Trace mode_var để lưu vào config khi thay đổi
+        self.mode_var.trace("w", self._on_mode_change)
+        
         self._build_ui()
         
     def _build_ui(self):
@@ -104,3 +107,10 @@ class SettingsTab(tk.Frame):
         self.config_manager.use_vni_font = self.use_vni_var.get()
         self.config_manager.mark_dirty()
         self.status_var.set("*Đã thay đổi cấu hình font - Chưa lưu*")
+    
+    def _on_mode_change(self, *args):
+        self.config_manager.export_mode = self.mode_var.get()
+        self.config_manager.mark_dirty()
+        mode_text = "Nhiều file" if self.mode_var.get() == "multiple" else "Một file"
+        self.status_var.set(f"*Đã thay đổi chế độ: {mode_text} - Chưa lưu*")
+

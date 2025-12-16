@@ -32,7 +32,9 @@ class MainWindow:
         self.output_var = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Desktop", "QuyY_Output"))
         self.count_var = tk.StringVar(value="0 bản ghi")
         self.status_var = tk.StringVar(value="Sẵn sàng")
-        self.export_mode_var = tk.StringVar(value="multiple")
+        
+        # Load export_mode từ config (mặc định "single")
+        self.export_mode_var = tk.StringVar(value=self.config_manager.export_mode)
         
         # 3. Build UI
         self._build_menu()
@@ -144,6 +146,12 @@ class MainWindow:
             count, df = ExcelHandler.read_file(filepath)
             self.count_var.set(f"{count} bản ghi")
             self.status_var.set("Đã load file Excel")
+            
+            # Clear ngày quy y khi chọn file Excel mới
+            self.config_manager.set_selected_date(None)
+            # Cập nhật UI của tab chính nếu có
+            if hasattr(self, 'tab_general') and hasattr(self.tab_general, '_clear_date_ui'):
+                self.tab_general._clear_date_ui()
             
             # Validate Excel file
             warnings = ExcelHandler.validate_excel(df)

@@ -186,12 +186,16 @@ class GeneralTab(tk.Frame):
     def _clear_date(self):
         """Xóa ngày đã chọn"""
         self.config_manager.set_selected_date(None)
+        self._clear_date_ui()
+        ToastNotification.info(self, "Đã xóa ngày quy y")
+    
+    def _clear_date_ui(self):
+        """Xóa ngày trên UI (không hiện thông báo) - dùng khi chọn file Excel mới"""
         self.lunar_info_var.set("Chưa chọn ngày")
         if HAS_TKCALENDAR:
             self.date_entry.delete(0, tk.END)
         else:
             self.date_var.set("")
-        ToastNotification.info(self, "Đã xóa ngày quy y")
 
     def _browse_excel(self):
         filename = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")])

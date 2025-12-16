@@ -30,6 +30,9 @@ class ConfigManager:
         # Cấu hình encoding font
         self.use_vni_font = True
         
+        # Chế độ xuất PDF: "single" (1 file) hoặc "multiple" (nhiều file)
+        self.export_mode = "single"
+        
         # Dirty flag - theo dõi trạng thái thay đổi chưa lưu
         self._dirty = False
         
@@ -65,7 +68,8 @@ class ConfigManager:
             "excel_mapping": self.excel_mapping,
             "custom_fields": self.custom_fields,
             "selected_date": self.selected_date,
-            "use_vni_font": self.use_vni_font
+            "use_vni_font": self.use_vni_font,
+            "export_mode": self.export_mode
         }
         self._save_file(self.config_path, data)
 
@@ -91,6 +95,8 @@ class ConfigManager:
                                 self._update_date_fields_from_selected_date()
                         if "use_vni_font" in data:
                             self.use_vni_font = data["use_vni_font"]
+                        if "export_mode" in data:
+                            self.export_mode = data["export_mode"]
                         # Backward compat check if needed, but not strictly required
                             
                 print(f"[ConfigManager] Đã load config từ: {self.config_path}")
@@ -105,7 +111,8 @@ class ConfigManager:
                 "excel_mapping": self.excel_mapping,
                 "custom_fields": self.custom_fields,
                 "selected_date": self.selected_date,
-                "use_vni_font": self.use_vni_font
+                "use_vni_font": self.use_vni_font,
+                "export_mode": self.export_mode
             }
             self._save_file(self.config_path, data)
             self.clear_dirty()  # Xóa dirty flag sau khi lưu thành công
