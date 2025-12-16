@@ -229,9 +229,12 @@ class MainWindow:
                     warning_msg + "\n\nBạn có muốn tiếp tục in không?"):
                     return
             
+            # Lấy máy in được chọn từ tab Chính
+            selected_printer = self.tab_general.get_selected_printer() if hasattr(self.tab_general, 'get_selected_printer') else None
+            
             # Mở cửa sổ preview thay vì in batch
             from ui.components.print_preview import PrintPreviewWindow
-            PrintPreviewWindow(self.root, df, self.config_manager, self.pdf_service)
+            PrintPreviewWindow(self.root, df, self.config_manager, self.pdf_service, selected_printer)
             
         except Exception as e:
             messagebox.showerror("Lỗi", str(e))

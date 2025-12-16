@@ -187,8 +187,13 @@ class PDFService:
         else:
             os.system(f'xdg-open "{path}"')
     
-    def print_file(self, pdf_path):
-        """In file PDF ra máy in mặc định"""
+    def print_file(self, pdf_path, printer_name=None):
+        """In file PDF ra máy in
+        
+        Args:
+            pdf_path: Đường dẫn file PDF
+            printer_name: Tên máy in (None = máy in mặc định)
+        """
         system = platform.system()
         try:
             if system == 'Windows':
@@ -196,14 +201,18 @@ class PDFService:
                 try:
                     import win32api
                     import win32print
-                    printer_name = win32print.GetDefaultPrinter()
+                    
+                    # Sử dụng máy in được chỉ định hoặc máy in mặc định
+                    if printer_name is None:
+                        printer_name = win32print.GetDefaultPrinter()
+                    
                     # 0 -> Hide window
                     win32api.ShellExecute(0, "print", pdf_path, f'/d:"{printer_name}"', ".", 0)
                     return True
                 except Exception as e:
                     print(f"Win32 print failed: {e}")
                 
-                # Attempt 2: os.startfile with 'print' verb
+                # Attempt 2: os.startfile with 'print' verb (uses default printer)
                 try:
                     print("Trying os.startfile print...")
                     os.startfile(pdf_path, "print")
@@ -218,9 +227,15 @@ class PDFService:
                 raise Exception("Không tìm thấy ứng dụng hỗ trợ in tự động. Đã mở file để bạn in thủ công.")
                 
             elif system == 'Darwin':
-                os.system(f'lpr "{pdf_path}"')
+                if printer_name:
+                    os.system(f'lpr -P "{printer_name}" "{pdf_path}"')
+                else:
+                    os.system(f'lpr "{pdf_path}"')
             else:
-                os.system(f'lp "{pdf_path}"')
+                if printer_name:
+                    os.system(f'lp -d "{printer_name}" "{pdf_path}"')
+                else:
+                    os.system(f'lp "{pdf_path}"')
         except Exception as e:
             # Re-raise nicely formatted
             if "No application is associated" in str(e) or str(e) == "NO_ASSOC":
@@ -229,3 +244,4 @@ class PDFService:
                 pass 
             print(f"Lỗi in {pdf_path}: {e}")
             raise e
+

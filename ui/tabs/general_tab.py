@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+import subprocess
 from datetime import datetime
 
 # Try to import tkcalendar for better date picker
@@ -13,6 +14,25 @@ except ImportError:
 
 from core.lunar_converter import LunarConverter
 from ui.components.toast import ToastNotification
+
+
+def get_printers():
+    """Lấy danh sách máy in có sẵn trên hệ thống Windows"""
+    printers = []
+    try:
+        # Sử dụng PowerShell để lấy danh sách máy in
+        result = subprocess.run(
+            ['powershell', '-Command', 'Get-Printer | Select-Object -ExpandProperty Name'],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            printers = [p.strip() for p in result.stdout.strip().split('\n') if p.strip()]
+    except Exception as e:
+        print(f"[GeneralTab] Không thể lấy danh sách máy in: {e}")
+    
+    return printers if printers else ["(Máy in mặc định)"]
 
 class GeneralTab(tk.Frame):
     def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
@@ -34,8 +54,13 @@ class GeneralTab(tk.Frame):
         self.date_var = tk.StringVar()
         self.lunar_info_var = tk.StringVar(value="Chưa chọn ngày")
         
+        # Printer variable
+        self.printer_var = tk.StringVar(value="(Máy in mặc định)")
+        self.printers_list = []
+        
         self._build_ui()
         self._load_saved_date()
+        self._load_printers()
         
     def _build_ui(self):
         content_frame = tk.Frame(self, padx=20, pady=20)
@@ -97,6 +122,24 @@ class GeneralTab(tk.Frame):
         
         tk.Label(lunar_frame, textvariable=self.lunar_info_var, font=("Arial", 10, "bold"), 
                  fg="#2c3e50", bg="#f8f9fa", justify=tk.LEFT, anchor=tk.W).pack(fill=tk.X)
+        
+        # 4. Máy in 🖨️ - Đặt ngang hàng với ngày quy y
+        self._build_section(content_frame, "4. Máy In 🖨️")
+        printer_frame = tk.Frame(self.last_section)
+        printer_frame.pack(fill=tk.X)
+        
+        tk.Label(printer_frame, text="Chọn máy in:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.printer_combo = ttk.Combobox(
+            printer_frame,
+            textvariable=self.printer_var,
+            font=("Arial", 10),
+            width=35,
+            state="readonly"
+        )
+        self.printer_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        tk.Button(printer_frame, text="🔄 Làm mới", command=self._load_printers, bg="#3498db", fg="white", font=("Arial", 9)).pack(side=tk.LEFT)
         
         # Actions
         action_frame = tk.Frame(content_frame)
@@ -214,7 +257,27 @@ class GeneralTab(tk.Frame):
     def unlock_ui(self):
         self.btn_export.config(state="normal")
         self.btn_print.config(state="normal")
+    
+    def _load_printers(self):
+        """Load danh sách máy in từ hệ thống"""
+        self.printers_list = get_printers()
+        self.printer_combo['values'] = self.printers_list
+        
+        # Chọn máy in đầu tiên nếu có
+        if self.printers_list:
+            # Giữ nguyên selection nếu vẫn valid
+            current = self.printer_var.get()
+            if current not in self.printers_list:
+                self.printer_var.set(self.printers_list[0])
+    
+    def get_selected_printer(self):
+        """Trả về tên máy in được chọn, hoặc None nếu dùng máy in mặc định"""
+        selected = self.printer_var.get()
+        if selected == "(Máy in mặc định)" or not selected:
+            return None
+        return selected
         
     def _on_vni_change(self, *args):
         self.config_manager.use_vni_font = self.use_vni_var.get()
         self.config_manager.mark_dirty()
+

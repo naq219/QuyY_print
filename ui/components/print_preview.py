@@ -24,11 +24,12 @@ CANVAS_HEIGHT = int(A4_HEIGHT_MM * SCALE)
 class PrintPreviewWindow(tk.Toplevel):
     """Cửa sổ preview và in lá phái"""
     
-    def __init__(self, parent, df, config_manager, pdf_service):
+    def __init__(self, parent, df, config_manager, pdf_service, printer_name=None):
         super().__init__(parent)
         self.df = df
         self.config_manager = config_manager
         self.pdf_service = pdf_service
+        self.printer_name = printer_name  # Máy in được chọn từ tab Chính
         
         self.current_index = 0
         self.total_records = len(df)
@@ -266,9 +267,11 @@ class PrintPreviewWindow(tk.Toplevel):
                 use_vni=use_vni
             )
             
-            # Print
-            self.pdf_service.print_file(temp_path)
-            ToastNotification.show(self, f"✅ Đã gửi lệnh in: {record['name'][:30]}", position="bottom")
+            # Print với máy in được chọn
+            self.pdf_service.print_file(temp_path, self.printer_name)
+            
+            printer_info = f" ({self.printer_name})" if self.printer_name else ""
+            ToastNotification.show(self, f"✅ Đã gửi lệnh in: {record['name'][:25]}{printer_info}", position="bottom")
             
         except Exception as e:
             ToastNotification.show(self, f"❌ Lỗi in: {str(e)[:50]}", bg_color="#e74c3c", position="bottom")
