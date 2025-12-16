@@ -78,10 +78,20 @@ class MainWindow:
         
     def _build_layout(self):
         # Header
-        header = tk.Frame(self.root, bg="#2c3e50", height=60)
+        header = tk.Frame(self.root, bg="#2c3e50", height=75)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
-        tk.Label(header, text="ỨNG DỤNG IN LÁ PHÁI QUY Y", font=("Arial", 16, "bold"), bg="#2c3e50", fg="white").pack(pady=15)
+        tk.Label(header, text="ỨNG DỤNG IN LÁ PHÁI QUY Y", font=("Arial", 16, "bold"), bg="#2c3e50", fg="white").pack(pady=(12, 2))
+        tk.Label(header, text="📞 0983.838.619", font=("Arial", 9), bg="#2c3e50", fg="#bdc3c7").pack(pady=(0, 8))
+        
+        # Style cho Notebook tabs - to hơn và dễ nhìn hơn
+        style = ttk.Style()
+        style.configure('TNotebook.Tab', 
+                       font=('Arial', 11, 'bold'),
+                       padding=[15, 8])  # [horizontal, vertical]
+        style.map('TNotebook.Tab',
+                 background=[('selected', '#3498db')],
+                 foreground=[('selected', '#2c3e50')])
         
         # Notebook
         self.notebook = ttk.Notebook(self.root)
@@ -104,11 +114,12 @@ class MainWindow:
         self.tab_settings = SettingsTab(self.notebook, self.config_manager, self.export_mode_var, self.status_var)
         self.tab_guide = GuideTab(self.notebook)
         
-        self.notebook.add(self.tab_general, text="📁 Chính")
-        self.notebook.add(self.tab_coord, text="📐 Tọa Độ")
-        self.notebook.add(self.tab_custom, text="✏️ Custom Fields")
-        self.notebook.add(self.tab_settings, text="⚙️ Cài đặt")
-        self.notebook.add(self.tab_guide, text="📖 Hướng dẫn")
+        # Tab names với spacing đẹp hơn
+        self.notebook.add(self.tab_general, text="  📁 Chính  ")
+        self.notebook.add(self.tab_coord, text="  📐 Tọa Độ  ")
+        self.notebook.add(self.tab_custom, text="  ✏️ Custom Fields  ")
+        self.notebook.add(self.tab_settings, text="  ⚙️ Cài đặt  ")
+        self.notebook.add(self.tab_guide, text="  📖 Hướng dẫn  ")
         
         # Bind event để refresh khi chuyển tab
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
