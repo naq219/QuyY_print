@@ -13,6 +13,52 @@ class PDFService:
     def __init__(self):
         self.generator = PDFGenerator()
     
+    def _get_available_filepath(self, filepath):
+        """Tìm đường dẫn file khả dụng, tránh file đang bị lock
+        
+        Nếu file đang được mở bởi app khác (không thể ghi đè),
+        sẽ tự động thêm số tăng dần: file.pdf -> file_1.pdf -> file_2.pdf
+        
+        Returns:
+            tuple: (filepath, was_renamed) - đường dẫn khả dụng và flag đã đổi tên
+        """
+        if not os.path.exists(filepath):
+            return filepath, False
+        
+        # Thử xem file có thể ghi được không
+        try:
+            with open(filepath, 'a'):
+                pass
+            return filepath, False
+        except (IOError, PermissionError):
+            # File đang bị lock, tìm tên mới
+            pass
+        
+        # Tách tên file và extension
+        base, ext = os.path.splitext(filepath)
+        counter = 1
+        max_attempts = 100
+        
+        while counter <= max_attempts:
+            new_filepath = f"{base}_{counter}{ext}"
+            if not os.path.exists(new_filepath):
+                return new_filepath, True
+            
+            # Nếu file tồn tại, kiểm tra xem có thể ghi được không
+            try:
+                with open(new_filepath, 'a'):
+                    pass
+                return new_filepath, True
+            except (IOError, PermissionError):
+                counter += 1
+                continue
+        
+        # Fallback: dùng timestamp
+        import time
+        timestamp = int(time.time())
+        new_filepath = f"{base}_{timestamp}{ext}"
+        return new_filepath, True
+    
     def run_batch_export(self, df, output_dir, config_manager, mode="multiple", progress_callback=None, completion_callback=None):
         """Chạy tiến trình xuất PDF trong thread riêng"""
         thread = threading.Thread(
@@ -73,7 +119,11 @@ class PDFService:
                 
                 if data_list:
                     try:
-                        output_path = os.path.join(work_dir, "QuyY_TatCa.pdf")
+                        original_path = os.path.join(work_dir, "QuyY_TatCa.pdf")
+                        output_path, was_renamed = self._get_available_filepath(original_path)
+                        
+                        if was_renamed:
+                            errors.append(f"File gốc đang được mở, đã lưu sang: {os.path.basename(output_path)}")
                         
                         def gen_progress(current, total_gen):
                             if progress_callback:
@@ -116,7 +166,11 @@ class PDFService:
                             if not safe_filename:
                                 safe_filename = f"record_{idx}"
                             
-                        output_path = os.path.join(work_dir, f"{safe_filename}.pdf")
+                        original_path = os.path.join(work_dir, f"{safe_filename}.pdf")
+                        output_path, was_renamed = self._get_available_filepath(original_path)
+                        
+                        if was_renamed:
+                            errors.append(f"File '{safe_filename}.pdf' đang được mở, đã lưu sang: {os.path.basename(output_path)}")
                         
                         self.generator.create_single_pdf(
                             data,
