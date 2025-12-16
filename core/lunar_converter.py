@@ -9,6 +9,64 @@ import datetime
 class LunarConverter:
     """Chuyển đổi Dương lịch sang Âm lịch"""
     
+    # Mapping năm âm lịch sang Can Chi (2015-2040)
+    CAN_CHI_MAP = {
+        2015: "Ất Mùi",
+        2016: "Bính Thân",
+        2017: "Đinh Dậu",
+        2018: "Mậu Tuất",
+        2019: "Kỷ Hợi",
+        2020: "Canh Tý",
+        2021: "Tân Sửu",
+        2022: "Nhâm Dần",
+        2023: "Quý Mão",
+        2024: "Giáp Thìn",
+        2025: "Ất Tỵ",
+        2026: "Bính Ngọ",
+        2027: "Đinh Mùi",
+        2028: "Mậu Thân",
+        2029: "Kỷ Dậu",
+        2030: "Canh Tuất",
+        2031: "Tân Hợi",
+        2032: "Nhâm Tý",
+        2033: "Quý Sửu",
+        2034: "Giáp Dần",
+        2035: "Ất Mão",
+        2036: "Bính Thìn",
+        2037: "Đinh Tỵ",
+        2038: "Mậu Ngọ",
+        2039: "Kỷ Mùi",
+        2040: "Canh Thân"
+    }
+    
+    # Can (Thiên Can - 10 chữ)
+    CAN = ["Giáp", "Ất", "Bính", "Đinh", "Mậu", "Kỷ", "Canh", "Tân", "Nhâm", "Quý"]
+    
+    # Chi (Địa Chi - 12 con giáp)
+    CHI = ["Tý", "Sửu", "Dần", "Mão", "Thìn", "Tỵ", "Ngọ", "Mùi", "Thân", "Dậu", "Tuất", "Hợi"]
+    
+    @staticmethod
+    def get_can_chi(year):
+        """
+        Tính Can Chi cho một năm bất kỳ
+        
+        Args:
+            year: Năm cần tính (số nguyên)
+            
+        Returns:
+            str: Tên Can Chi (ví dụ: "Ất Tỵ")
+        """
+        # Nếu có trong map sẵn thì dùng
+        if year in LunarConverter.CAN_CHI_MAP:
+            return LunarConverter.CAN_CHI_MAP[year]
+        
+        # Tính toán cho các năm khác
+        # Năm 1984 là Giáp Tý (Can = 0, Chi = 0)
+        can_index = (year - 4) % 10
+        chi_index = (year - 4) % 12
+        
+        return f"{LunarConverter.CAN[can_index]} {LunarConverter.CHI[chi_index]}"
+    
     @staticmethod
     def jd_from_date(dd, mm, yy):
         """Tính Julian day number từ ngày dương lịch"""
@@ -180,6 +238,9 @@ class LunarConverter:
         # Phật lịch = năm dương lịch + 544
         buddhist_year = solar_year + 544
         
+        # Lấy tên Can Chi cho năm âm lịch
+        lunar_year_name = LunarConverter.get_can_chi(lunar_year)
+        
         return {
             'solar_day': solar_day,
             'solar_month': solar_month,
@@ -187,6 +248,7 @@ class LunarConverter:
             'lunar_day': lunar_day,
             'lunar_month': lunar_month,
             'lunar_year': lunar_year,
+            'lunar_year_name': lunar_year_name,  # Tên Can Chi
             'buddhist_year': buddhist_year
         }
 
@@ -202,6 +264,7 @@ if __name__ == "__main__":
     for date in test_dates:
         result = LunarConverter.convert_date(date)
         print(f"Dương lịch: {result['solar_day']}/{result['solar_month']}/{result['solar_year']}")
-        print(f"Âm lịch: {result['lunar_day']}/{result['lunar_month']}/{result['lunar_year']}")
+        print(f"Âm lịch: {result['lunar_day']}/{result['lunar_month']} năm {result['lunar_year_name']}")
         print(f"Phật lịch: {result['buddhist_year']}")
         print("-" * 40)
+

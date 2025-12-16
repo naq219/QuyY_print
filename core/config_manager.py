@@ -153,7 +153,7 @@ class ConfigManager:
                     "nam_duong": str(date_info['solar_year']),
                     "ngay_am": str(date_info['lunar_day']),
                     "thang_am": str(date_info['lunar_month']),
-                    "nam_am": str(date_info['lunar_year']),
+                    "nam_am": str(date_info['lunar_year_name']),  # Sử dụng tên Can Chi (ví dụ: Ất Tỵ)
                     "phat_lich": str(date_info['buddhist_year'])
                 }
                 

@@ -175,7 +175,7 @@ class GeneralTab(tk.Frame):
             date_info = LunarConverter.convert_date(date_str)
             
             solar_text = f"Dương lịch: {date_info['solar_day']}/{date_info['solar_month']}/{date_info['solar_year']}"
-            lunar_text = f"Âm lịch: {date_info['lunar_day']}/{date_info['lunar_month']}/{date_info['lunar_year']}"
+            lunar_text = f"Âm lịch: {date_info['lunar_day']}/{date_info['lunar_month']} năm {date_info['lunar_year_name']}"
             buddhist_text = f"Phật lịch: {date_info['buddhist_year']}"
             
             self.lunar_info_var.set(f"✅ {solar_text}  |  🌙 {lunar_text}  |  ☸️ {buddhist_text}")
