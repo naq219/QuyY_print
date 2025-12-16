@@ -13,6 +13,8 @@ from core.excel_handler import ExcelHandler
 from ui.tabs.general_tab import GeneralTab
 from ui.tabs.coordinate_tab import CoordinateTab
 from ui.tabs.custom_tab import CustomFieldTab
+from ui.tabs.settings_tab import SettingsTab
+from ui.tabs.guide_tab import GuideTab
 
 class MainWindow:
     def __init__(self, root):
@@ -97,16 +99,33 @@ class MainWindow:
         )
         self.tab_coord = CoordinateTab(self.notebook, self.config_manager, self.status_var)
         self.tab_custom = CustomFieldTab(self.notebook, self.config_manager, self.status_var)
+        self.tab_settings = SettingsTab(self.notebook, self.config_manager, self.export_mode_var, self.status_var)
+        self.tab_guide = GuideTab(self.notebook)
         
         self.notebook.add(self.tab_general, text="📁 Chính")
         self.notebook.add(self.tab_coord, text="📐 Tọa Độ")
         self.notebook.add(self.tab_custom, text="✏️ Custom Fields")
+        self.notebook.add(self.tab_settings, text="⚙️ Cài đặt")
+        self.notebook.add(self.tab_guide, text="📖 Hướng dẫn")
         
         # Bind event để refresh khi chuyển tab
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         
         # Refresh sau khi UI được build hoàn toàn
         self.root.after(100, self._initial_refresh)
+        
+        # Footer - Contact info
+        footer_frame = tk.Frame(self.root, bg="#34495e", height=35)
+        footer_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        footer_frame.pack_propagate(False)
+        
+        tk.Label(
+            footer_frame, 
+            text="📞 Liên hệ: Trung Quảng An 0983.838.619", 
+            font=("Arial", 10, "bold"), 
+            bg="#34495e", 
+            fg="#ecf0f1"
+        ).pack(side=tk.RIGHT, padx=15, pady=8)
         
         # Status & Progress
         status_frame = tk.Frame(self.root, bg="#ecf0f1", height=30)

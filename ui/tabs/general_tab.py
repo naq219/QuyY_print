@@ -58,7 +58,7 @@ class GeneralTab(tk.Frame):
         tk.Entry(out_frame, textvariable=self.output_var, font=("Arial", 10)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         tk.Button(out_frame, text="Chọn Thư Mục", command=self._browse_output, bg="#3498db", fg="white", font=("Arial", 10, "bold")).pack(side=tk.RIGHT)
         
-        # 3. Ngày Quy Y (NEW)
+        # 3. Ngày Quy Y 📅
         self._build_section(content_frame, "3. Ngày Quy Y 📅")
         date_frame = tk.Frame(self.last_section)
         date_frame.pack(fill=tk.X)
@@ -97,27 +97,9 @@ class GeneralTab(tk.Frame):
         tk.Label(lunar_frame, textvariable=self.lunar_info_var, font=("Arial", 10, "bold"), 
                  fg="#2c3e50", bg="#f8f9fa", justify=tk.LEFT, anchor=tk.W).pack(fill=tk.X)
         
-        # 4. Mode
-        self._build_section(content_frame, "4. Chế Độ Xuất PDF")
-        tk.Radiobutton(self.last_section, text="📄 Nhiều file PDF (riêng lẻ)", variable=self.mode_var, value="multiple").pack(anchor=tk.W)
-        tk.Radiobutton(self.last_section, text="📚 Một file PDF (gộp trang)", variable=self.mode_var, value="single").pack(anchor=tk.W)
-        
-        # 5. Font Config
-        self._build_section(content_frame, "5. Cấu hình Font")
-        font_frame = tk.Frame(self.last_section)
-        font_frame.pack(fill=tk.X)
-        
-        tk.Checkbutton(font_frame, text="Chuyển sang VNI (dùng cho font VNI-Times...)", 
-                       variable=self.use_vni_var).pack(anchor=tk.W)
-        
-        # Info
-        info_frame = tk.LabelFrame(content_frame, text="📋 Thông tin", font=("Arial", 11, "bold"), padx=10, pady=10)
-        info_frame.pack(fill=tk.X, pady=(0, 15))
-        tk.Label(info_frame, text="• PDF hướng NGANG (Landscape)\n• Chỉnh tọa độ ở tab 'Tọa Độ'\n• Phải chọn Ngày Quy Y trước khi xuất/in PDF", justify=tk.LEFT).pack(anchor=tk.W)
-        
         # Actions
         action_frame = tk.Frame(content_frame)
-        action_frame.pack(fill=tk.X, pady=(0, 15))
+        action_frame.pack(fill=tk.X, pady=(15, 15))
         
         self.btn_export = tk.Button(action_frame, text="📄 Xuất PDF", command=self.on_export, bg="#27ae60", fg="white", font=("Arial", 12, "bold"), height=2)
         self.btn_export.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
@@ -231,4 +213,3 @@ class GeneralTab(tk.Frame):
     def _on_vni_change(self, *args):
         self.config_manager.use_vni_font = self.use_vni_var.get()
         self.config_manager.mark_dirty()
-
