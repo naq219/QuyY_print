@@ -1,7 +1,7 @@
 {
   "field_positions": {
     "phap_danh": {
-      "x": 198.2,
+      "x": 196.6,
       "y": 139.0,
       "size": 18,
       "bold": false,
@@ -41,7 +41,7 @@
   },
   "custom_fields": {
     "pl": {
-      "value": "2611",
+      "value": "",
       "x": 206.0,
       "y": 178.0,
       "size": 12,
@@ -50,7 +50,7 @@
       "align": "L"
     },
     "ngay_duong": {
-      "value": "10",
+      "value": "",
       "x": 235.2,
       "y": 178.4,
       "size": 11,
@@ -59,7 +59,7 @@
       "align": "C"
     },
     "thang_duong": {
-      "value": "12",
+      "value": "",
       "x": 259.6,
       "y": 178.0,
       "size": 11,
@@ -68,7 +68,7 @@
       "align": "C"
     },
     "nam_duong": {
-      "value": "2025",
+      "value": "",
       "x": 276.6,
       "y": 178.0,
       "size": 11,
@@ -77,7 +77,7 @@
       "align": "C"
     },
     "ngay_am": {
-      "value": "21",
+      "value": "",
       "x": 235.6,
       "y": 182.8,
       "size": 11,
@@ -86,7 +86,7 @@
       "align": "C"
     },
     "thang_am": {
-      "value": "10",
+      "value": "",
       "x": 259.2,
       "y": 182.8,
       "size": 11,
@@ -95,7 +95,7 @@
       "align": "C"
     },
     "nam_am": {
-      "value": "Ất Tỵ",
+      "value": "",
       "x": 277.8,
       "y": 183.6,
       "size": 11,
@@ -104,7 +104,7 @@
       "align": "C"
     },
     "phat_lich": {
-      "value": "2569",
+      "value": "",
       "x": 155,
       "y": 214,
       "size": 11,
@@ -113,6 +113,7 @@
       "align": "C"
     }
   },
-  "selected_date": "2025-12-10",
-  "use_vni_font": true
+  "selected_date": null,
+  "use_vni_font": true,
+  "export_mode": "single"
 }
