@@ -4,8 +4,9 @@ from tkinter import ttk, filedialog, messagebox
 import os
 
 class GeneralTab(tk.Frame):
-    def __init__(self, parent, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
+    def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
         super().__init__(parent)
+        self.config_manager = config_manager
         self.excel_var = excel_var
         self.output_var = output_var
         self.count_var = count_var
@@ -14,6 +15,9 @@ class GeneralTab(tk.Frame):
         self.on_excel_selected = on_excel_selected_callback
         self.on_export = on_export_callback
         self.on_print = on_print_callback
+        
+        self.use_vni_var = tk.BooleanVar(value=getattr(self.config_manager, "use_vni_font", True))
+        self.use_vni_var.trace("w", self._on_vni_change)
         
         self._build_ui()
         
@@ -43,6 +47,14 @@ class GeneralTab(tk.Frame):
         self._build_section(content_frame, "3. Chế Độ Xuất PDF")
         tk.Radiobutton(self.last_section, text="📄 Nhiều file PDF (riêng lẻ)", variable=self.mode_var, value="multiple").pack(anchor=tk.W)
         tk.Radiobutton(self.last_section, text="📚 Một file PDF (gộp trang)", variable=self.mode_var, value="single").pack(anchor=tk.W)
+        
+        # 4. Font Config
+        self._build_section(content_frame, "4. Cấu hình Font")
+        font_frame = tk.Frame(self.last_section)
+        font_frame.pack(fill=tk.X)
+        
+        tk.Checkbutton(font_frame, text="Chuyển sang VNI (dùng cho font VNI-Times...)", 
+                       variable=self.use_vni_var).pack(anchor=tk.W)
         
         # Info
         info_frame = tk.LabelFrame(content_frame, text="📋 Thông tin", font=("Arial", 11, "bold"), padx=10, pady=10)
@@ -80,3 +92,7 @@ class GeneralTab(tk.Frame):
     def unlock_ui(self):
         self.btn_export.config(state="normal")
         self.btn_print.config(state="normal")
+        
+    def _on_vni_change(self, *args):
+        self.config_manager.use_vni_font = self.use_vni_var.get()
+        self.config_manager.mark_dirty()

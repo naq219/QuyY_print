@@ -5,6 +5,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.units import mm
+from core.utils import convert_unicode_to_vni
 
 try:
     from config import FIELD_POSITIONS, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
@@ -53,7 +54,7 @@ class PDFGenerator:
                  
         return self.font_registered
     
-    def create_single_pdf(self, data, output_path, field_positions=None, custom_fields=None):
+    def create_single_pdf(self, data, output_path, field_positions=None, custom_fields=None, use_vni=False):
         """
         Tạo PDF cho một bản ghi
         
@@ -81,17 +82,17 @@ class PDFGenerator:
         # Vẽ các trường cố định (field_positions)
         for field, config in positions.items():
             if field in data:
-                self._draw_field(c, data[field], config, page_height)
+                self._draw_field(c, data[field], config, page_height, use_vni)
                 
         # Vẽ các trường tùy chỉnh (custom_fields)
         # Custom fields có thể là static text (value) hoặc dynamic (nếu khớp key data?)
         # Theo logic hiện tại, custom field có 'value' cứng.
         for field_name, config in customs.items():
-            self._draw_custom_field(c, field_name, config, page_height)
+            self._draw_custom_field(c, field_name, config, page_height, use_vni)
             
         c.save()
 
-    def create_merged_pdf(self, data_list, output_path, field_positions=None, custom_fields=None, progress_callback=None):
+    def create_merged_pdf(self, data_list, output_path, field_positions=None, custom_fields=None, progress_callback=None, use_vni=False):
         """
         Tạo 1 file PDF chứa nhiều trang (mỗi trang 1 bản ghi)
         """
@@ -112,11 +113,11 @@ class PDFGenerator:
             # Draw standard fields
             for field, config in positions.items():
                 if field in data:
-                    self._draw_field(c, data[field], config, page_height)
+                    self._draw_field(c, data[field], config, page_height, use_vni)
             
             # Draw custom fields
             for field_name, config in customs.items():
-                self._draw_custom_field(c, field_name, config, page_height)
+                self._draw_custom_field(c, field_name, config, page_height, use_vni)
                 
             c.showPage() # End page
             
@@ -126,9 +127,13 @@ class PDFGenerator:
         c.save()
         return total
 
-    def _draw_field(self, c, text, config, page_height):
+    def _draw_field(self, c, text, config, page_height, use_vni=False):
         """Vẽ một trường lên canvas"""
         if not text: return
+        
+        # Convert encoding if needed
+        if use_vni:
+            text = convert_unicode_to_vni(str(text))
         
         x = config["x"] * mm
         # ReportLab coordinate system starts from bottom-left
@@ -158,8 +163,8 @@ class PDFGenerator:
         else:
             c.drawString(x, y, str(text))
 
-    def _draw_custom_field(self, c, name, config, page_height):
+    def _draw_custom_field(self, c, name, config, page_height, use_vni=False):
         """Vẽ custom field"""
         text = config.get("value", "")
         # Custom field logic is same structure as standard field
-        self._draw_field(c, text, config, page_height)
+        self._draw_field(c, text, config, page_height, use_vni)

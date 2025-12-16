@@ -23,6 +23,10 @@ class ConfigManager:
         self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
         self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
         
+        
+        # Cấu hình encoding font
+        self.use_vni_font = True
+        
         # Dirty flag - theo dõi trạng thái thay đổi chưa lưu
         self._dirty = False
         
@@ -56,7 +60,8 @@ class ConfigManager:
         data = {
             "field_positions": self.field_positions,
             "excel_mapping": self.excel_mapping,
-            "custom_fields": self.custom_fields
+            "custom_fields": self.custom_fields,
+            "use_vni_font": self.use_vni_font
         }
         self._save_file(self.config_path, data)
 
@@ -75,6 +80,9 @@ class ConfigManager:
                             self.excel_mapping = data["excel_mapping"]
                         if "custom_fields" in data:
                             self.custom_fields = data["custom_fields"]
+                        if "use_vni_font" in data:
+                            self.use_vni_font = data["use_vni_font"]
+                        # Backward compat check if needed, but not strictly required
                             
                 print(f"[ConfigManager] Đã load config từ: {self.config_path}")
         except Exception as e:
@@ -86,7 +94,8 @@ class ConfigManager:
             data = {
                 "field_positions": self.field_positions,
                 "excel_mapping": self.excel_mapping,
-                "custom_fields": self.custom_fields
+                "custom_fields": self.custom_fields,
+                "use_vni_font": self.use_vni_font
             }
             self._save_file(self.config_path, data)
             self.clear_dirty()  # Xóa dirty flag sau khi lưu thành công
@@ -174,6 +183,7 @@ class ConfigManager:
         data = {
             "field_positions": self.field_positions,
             "excel_mapping": self.excel_mapping,
-            "custom_fields": self.custom_fields
+            "custom_fields": self.custom_fields,
+            "use_vni_font": self.use_vni_font
         }
         self._save_file(filepath, data)

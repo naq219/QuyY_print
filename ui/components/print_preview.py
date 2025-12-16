@@ -256,11 +256,13 @@ class PrintPreviewWindow(tk.Toplevel):
             # Generate PDF
             from core.pdf_generator import PDFGenerator
             generator = PDFGenerator()
+            use_vni = getattr(self.config_manager, "use_vni_font", True)
             generator.create_single_pdf(
                 record['data'],
                 temp_path,
                 field_positions=self.config_manager.field_positions,
-                custom_fields=self.config_manager.custom_fields
+                custom_fields=self.config_manager.custom_fields,
+                use_vni=use_vni
             )
             
             # Print
@@ -290,11 +292,13 @@ class PrintPreviewWindow(tk.Toplevel):
         try:
             from core.pdf_generator import PDFGenerator
             generator = PDFGenerator()
+            use_vni = getattr(self.config_manager, "use_vni_font", True)
             generator.create_single_pdf(
                 record['data'],
                 filepath,
                 field_positions=self.config_manager.field_positions,
-                custom_fields=self.config_manager.custom_fields
+                custom_fields=self.config_manager.custom_fields,
+                use_vni=use_vni
             )
             messagebox.showinfo("Thành công", f"Đã lưu: {filepath}")
         except Exception as e:

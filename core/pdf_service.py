@@ -51,6 +51,7 @@ class PDFService:
             total = len(df)
             field_positions = config_manager.field_positions
             custom_fields = config_manager.custom_fields
+            use_vni = getattr(config_manager, "use_vni_font", True)
             
             # --- GENERATION PHASE ---
             
@@ -80,7 +81,8 @@ class PDFService:
                             output_path,
                             field_positions=field_positions,
                             custom_fields=custom_fields,
-                            progress_callback=gen_progress
+                            progress_callback=gen_progress,
+                            use_vni=use_vni
                         )
                         success_count = page_count # Count pages/records
                         generated_files.append(output_path)
@@ -109,7 +111,8 @@ class PDFService:
                             data,
                             output_path,
                             field_positions=field_positions,
-                            custom_fields=custom_fields
+                            custom_fields=custom_fields,
+                            use_vni=use_vni
                         )
                         success_count += 1
                         generated_files.append(output_path)

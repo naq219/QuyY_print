@@ -85,7 +85,8 @@ class MainWindow:
         
         # Tabs
         self.tab_general = GeneralTab(
-            self.notebook, 
+            self.notebook,
+            self.config_manager,
             self.excel_var, 
             self.output_var, 
             self.count_var, 
