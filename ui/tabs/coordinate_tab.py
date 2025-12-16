@@ -182,9 +182,17 @@ class CoordinateTab(tk.Frame):
         x_px = x_mm * SCALE
         y_px = y_mm * SCALE
         
-        text = SAMPLE_DATA.get(name, conf.get("value", name))
+        # Xác định text hiển thị
         if is_custom:
-            text = conf.get("value", name)
+            # Custom field: ưu tiên value, nếu rỗng thì hiển thị [tên field]
+            value = conf.get("value", "")
+            if value and str(value).strip():
+                text = str(value)
+            else:
+                text = f"[{name}]"  # Hiển thị tên field trong ngoặc vuông khi chưa có value
+        else:
+            # Field tiêu chuẩn: dùng sample data hoặc tên field
+            text = SAMPLE_DATA.get(name, name)
             
         anchor = tk.SW  # Tọa độ là điểm dưới cùng bên trái
         if align == "C": anchor = tk.S  # Giữa dưới

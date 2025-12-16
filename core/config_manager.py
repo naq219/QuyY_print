@@ -10,6 +10,7 @@ import os
 import copy
 from config import FIELD_POSITIONS, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
 from core.resource_manager import get_config_path, get_app_dir
+from core.lunar_converter import LunarConverter
 
 
 class ConfigManager:
@@ -23,6 +24,8 @@ class ConfigManager:
         self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
         self.custom_fields = copy.deepcopy(CUSTOM_FIELDS)
         
+        # Ngày quy y được chọn (dạng YYYY-MM-DD hoặc None)
+        self.selected_date = None
         
         # Cấu hình encoding font
         self.use_vni_font = True
@@ -61,6 +64,7 @@ class ConfigManager:
             "field_positions": self.field_positions,
             "excel_mapping": self.excel_mapping,
             "custom_fields": self.custom_fields,
+            "selected_date": self.selected_date,
             "use_vni_font": self.use_vni_font
         }
         self._save_file(self.config_path, data)
@@ -80,6 +84,11 @@ class ConfigManager:
                             self.excel_mapping = data["excel_mapping"]
                         if "custom_fields" in data:
                             self.custom_fields = data["custom_fields"]
+                        if "selected_date" in data:
+                            self.selected_date = data["selected_date"]
+                            # Cập nhật lại custom fields từ selected_date đã lưu
+                            if self.selected_date:
+                                self._update_date_fields_from_selected_date()
                         if "use_vni_font" in data:
                             self.use_vni_font = data["use_vni_font"]
                         # Backward compat check if needed, but not strictly required
@@ -95,6 +104,7 @@ class ConfigManager:
                 "field_positions": self.field_positions,
                 "excel_mapping": self.excel_mapping,
                 "custom_fields": self.custom_fields,
+                "selected_date": self.selected_date,
                 "use_vni_font": self.use_vni_font
             }
             self._save_file(self.config_path, data)
@@ -116,7 +126,56 @@ class ConfigManager:
         self.field_positions = copy.deepcopy(FIELD_POSITIONS)
         self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
         self.custom_fields = {}  # Reset custom fields về rỗng
+        self.selected_date = None
         self.save()
+
+    def set_selected_date(self, date_str):
+        """
+        Đặt ngày quy y được chọn và cập nhật các custom fields tương ứng
+        
+        Args:
+            date_str: Ngày dạng "YYYY-MM-DD" hoặc None để xóa
+        """
+        self.selected_date = date_str
+        self._update_date_fields_from_selected_date()
+        self.mark_dirty()
+
+    def _update_date_fields_from_selected_date(self):
+        """Cập nhật các custom fields ngày tháng từ selected_date"""
+        if self.selected_date:
+            try:
+                date_info = LunarConverter.convert_date(self.selected_date)
+                
+                # Cập nhật giá trị cho các custom fields ngày tháng
+                date_fields = {
+                    "ngay_duong": str(date_info['solar_day']),
+                    "thang_duong": str(date_info['solar_month']),
+                    "nam_duong": str(date_info['solar_year']),
+                    "ngay_am": str(date_info['lunar_day']),
+                    "thang_am": str(date_info['lunar_month']),
+                    "nam_am": str(date_info['lunar_year']),
+                    "phat_lich": str(date_info['buddhist_year'])
+                }
+                
+                for field_name, value in date_fields.items():
+                    if field_name in self.custom_fields:
+                        self.custom_fields[field_name]["value"] = value
+                        
+            except Exception as e:
+                print(f"[ConfigManager] Lỗi convert ngày: {e}")
+        else:
+            # Xóa giá trị nếu không có ngày được chọn
+            for field_name in ["ngay_duong", "thang_duong", "nam_duong", "ngay_am", "thang_am", "nam_am", "phat_lich"]:
+                if field_name in self.custom_fields:
+                    self.custom_fields[field_name]["value"] = ""
+
+    def get_selected_date(self):
+        """Lấy ngày quy y được chọn"""
+        return self.selected_date
+    
+    def is_date_selected(self):
+        """Kiểm tra đã chọn ngày quy y chưa"""
+        return self.selected_date is not None and self.selected_date != ""
 
     def add_custom_field(self, name, value, x, y, size, align="L"):
         """Thêm custom field mới"""
@@ -184,6 +243,7 @@ class ConfigManager:
             "field_positions": self.field_positions,
             "excel_mapping": self.excel_mapping,
             "custom_fields": self.custom_fields,
+            "selected_date": self.selected_date,
             "use_vni_font": self.use_vni_font
         }
         self._save_file(filepath, data)

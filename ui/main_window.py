@@ -102,6 +102,12 @@ class MainWindow:
         self.notebook.add(self.tab_coord, text="📐 Tọa Độ")
         self.notebook.add(self.tab_custom, text="✏️ Custom Fields")
         
+        # Bind event để refresh khi chuyển tab
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        
+        # Refresh sau khi UI được build hoàn toàn
+        self.root.after(100, self._initial_refresh)
+        
         # Status & Progress
         status_frame = tk.Frame(self.root, bg="#ecf0f1", height=30)
         status_frame.pack(fill=tk.X, side=tk.BOTTOM)
@@ -128,6 +134,11 @@ class MainWindow:
         output_dir = self.output_var.get()
         if not excel_path or not output_dir:
             messagebox.showwarning("Thiếu thông tin", "Vui lòng chọn file Excel và thư mục lưu.")
+            return
+        
+        # Kiểm tra đã chọn ngày quy y chưa
+        if not self.config_manager.is_date_selected():
+            messagebox.showwarning("Chưa chọn ngày", "Vui lòng chọn Ngày Quy Y trước khi xuất PDF!\n\nVào tab 'Chính' > phần 'Ngày Quy Y' để chọn ngày.")
             return
 
         if not messagebox.askyesno("Xác nhận", "Bắt đầu xuất PDF?"):
@@ -156,6 +167,11 @@ class MainWindow:
         excel_path = self.excel_var.get()
         if not excel_path:
             messagebox.showwarning("Thiếu thông tin", "Vui lòng chọn file Excel!")
+            return
+        
+        # Kiểm tra đã chọn ngày quy y chưa
+        if not self.config_manager.is_date_selected():
+            messagebox.showwarning("Chưa chọn ngày", "Vui lòng chọn Ngày Quy Y trước khi in!\n\nVào tab 'Chính' > phần 'Ngày Quy Y' để chọn ngày.")
             return
             
         try:
@@ -227,3 +243,26 @@ class MainWindow:
             self.config_manager.reset_to_defaults()
             self.tab_coord.refresh()
             self.tab_custom.refresh()
+
+    def _on_tab_changed(self, event):
+        """Refresh tab khi người dùng chuyển sang tab khác"""
+        try:
+            selected_tab = self.notebook.select()
+            tab_text = self.notebook.tab(selected_tab, "text")
+            
+            if "Tọa Độ" in tab_text:
+                self.tab_coord.refresh()
+            elif "Custom" in tab_text:
+                self.tab_custom.refresh()
+        except Exception as e:
+            print(f"[MainWindow] Error on tab changed: {e}")
+
+    def _initial_refresh(self):
+        """Refresh tất cả tabs sau khi UI được build hoàn toàn"""
+        try:
+            self.tab_coord.refresh()
+            self.tab_custom.refresh()
+            print("[MainWindow] Initial refresh completed")
+        except Exception as e:
+            print(f"[MainWindow] Error initial refresh: {e}")
+

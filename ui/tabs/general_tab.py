@@ -2,6 +2,16 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+from datetime import datetime
+
+# Try to import tkcalendar for better date picker
+try:
+    from tkcalendar import DateEntry
+    HAS_TKCALENDAR = True
+except ImportError:
+    HAS_TKCALENDAR = False
+
+from core.lunar_converter import LunarConverter
 
 class GeneralTab(tk.Frame):
     def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
@@ -19,7 +29,12 @@ class GeneralTab(tk.Frame):
         self.use_vni_var = tk.BooleanVar(value=getattr(self.config_manager, "use_vni_font", True))
         self.use_vni_var.trace("w", self._on_vni_change)
         
+        # Date variables
+        self.date_var = tk.StringVar()
+        self.lunar_info_var = tk.StringVar(value="Chưa chọn ngày")
+        
         self._build_ui()
+        self._load_saved_date()
         
     def _build_ui(self):
         content_frame = tk.Frame(self, padx=20, pady=20)
@@ -43,13 +58,52 @@ class GeneralTab(tk.Frame):
         tk.Entry(out_frame, textvariable=self.output_var, font=("Arial", 10)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
         tk.Button(out_frame, text="Chọn Thư Mục", command=self._browse_output, bg="#3498db", fg="white", font=("Arial", 10, "bold")).pack(side=tk.RIGHT)
         
-        # 3. Mode
-        self._build_section(content_frame, "3. Chế Độ Xuất PDF")
+        # 3. Ngày Quy Y (NEW)
+        self._build_section(content_frame, "3. Ngày Quy Y 📅")
+        date_frame = tk.Frame(self.last_section)
+        date_frame.pack(fill=tk.X)
+        
+        tk.Label(date_frame, text="Chọn ngày (Dương lịch):", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 10))
+        
+        if HAS_TKCALENDAR:
+            # Use DateEntry if tkcalendar is available
+            self.date_entry = DateEntry(
+                date_frame,
+                width=15,
+                background='#3498db',
+                foreground='white',
+                borderwidth=2,
+                date_pattern='yyyy-mm-dd',
+                font=("Arial", 10)
+            )
+            self.date_entry.pack(side=tk.LEFT, padx=(0, 10))
+            self.date_entry.bind("<<DateEntrySelected>>", self._on_date_selected)
+            # Clear initial date
+            self.date_entry.delete(0, tk.END)
+        else:
+            # Fallback to Entry with format hint
+            tk.Label(date_frame, text="(YYYY-MM-DD):", font=("Arial", 9), fg="#7f8c8d").pack(side=tk.LEFT)
+            self.date_entry = tk.Entry(date_frame, textvariable=self.date_var, font=("Arial", 10), width=12)
+            self.date_entry.pack(side=tk.LEFT, padx=(5, 10))
+            self.date_var.trace("w", self._on_date_text_change)
+        
+        tk.Button(date_frame, text="Áp dụng", command=self._apply_date, bg="#9b59b6", fg="white", font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(0, 10))
+        tk.Button(date_frame, text="Xóa", command=self._clear_date, bg="#95a5a6", fg="white", font=("Arial", 10)).pack(side=tk.LEFT)
+        
+        # Lunar calendar display
+        lunar_frame = tk.Frame(self.last_section, bg="#f8f9fa", padx=10, pady=8)
+        lunar_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        tk.Label(lunar_frame, textvariable=self.lunar_info_var, font=("Arial", 10, "bold"), 
+                 fg="#2c3e50", bg="#f8f9fa", justify=tk.LEFT, anchor=tk.W).pack(fill=tk.X)
+        
+        # 4. Mode
+        self._build_section(content_frame, "4. Chế Độ Xuất PDF")
         tk.Radiobutton(self.last_section, text="📄 Nhiều file PDF (riêng lẻ)", variable=self.mode_var, value="multiple").pack(anchor=tk.W)
         tk.Radiobutton(self.last_section, text="📚 Một file PDF (gộp trang)", variable=self.mode_var, value="single").pack(anchor=tk.W)
         
-        # 4. Font Config
-        self._build_section(content_frame, "4. Cấu hình Font")
+        # 5. Font Config
+        self._build_section(content_frame, "5. Cấu hình Font")
         font_frame = tk.Frame(self.last_section)
         font_frame.pack(fill=tk.X)
         
@@ -59,7 +113,7 @@ class GeneralTab(tk.Frame):
         # Info
         info_frame = tk.LabelFrame(content_frame, text="📋 Thông tin", font=("Arial", 11, "bold"), padx=10, pady=10)
         info_frame.pack(fill=tk.X, pady=(0, 15))
-        tk.Label(info_frame, text="• PDF hướng NGANG (Landscape)\n• Chỉnh tọa độ ở tab 'Tọa Độ'", justify=tk.LEFT).pack(anchor=tk.W)
+        tk.Label(info_frame, text="• PDF hướng NGANG (Landscape)\n• Chỉnh tọa độ ở tab 'Tọa Độ'\n• Phải chọn Ngày Quy Y trước khi xuất/in PDF", justify=tk.LEFT).pack(anchor=tk.W)
         
         # Actions
         action_frame = tk.Frame(content_frame)
@@ -74,6 +128,87 @@ class GeneralTab(tk.Frame):
     def _build_section(self, parent, title):
         self.last_section = tk.LabelFrame(parent, text=title, font=("Arial", 11, "bold"), padx=10, pady=10)
         self.last_section.pack(fill=tk.X, pady=(0, 15))
+
+    def _load_saved_date(self):
+        """Load ngày đã lưu từ config"""
+        saved_date = self.config_manager.get_selected_date()
+        if saved_date:
+            if HAS_TKCALENDAR:
+                try:
+                    date_obj = datetime.strptime(saved_date, "%Y-%m-%d")
+                    self.date_entry.set_date(date_obj)
+                except:
+                    pass
+            else:
+                self.date_var.set(saved_date)
+            self._update_lunar_display(saved_date)
+
+    def _on_date_selected(self, event=None):
+        """Callback khi chọn ngày từ DateEntry (tkcalendar)"""
+        if HAS_TKCALENDAR:
+            date_obj = self.date_entry.get_date()
+            date_str = date_obj.strftime("%Y-%m-%d")
+            self._apply_date_value(date_str)
+
+    def _on_date_text_change(self, *args):
+        """Callback khi nhập ngày bằng text (fallback)"""
+        # Don't auto-apply, wait for "Áp dụng" button
+        pass
+
+    def _apply_date(self):
+        """Áp dụng ngày được chọn"""
+        if HAS_TKCALENDAR:
+            try:
+                date_obj = self.date_entry.get_date()
+                date_str = date_obj.strftime("%Y-%m-%d")
+            except:
+                messagebox.showwarning("Lỗi", "Vui lòng chọn ngày hợp lệ!")
+                return
+        else:
+            date_str = self.date_var.get().strip()
+            if not date_str:
+                messagebox.showwarning("Lỗi", "Vui lòng nhập ngày (định dạng YYYY-MM-DD)!")
+                return
+            # Validate format
+            try:
+                datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                messagebox.showwarning("Lỗi", "Định dạng ngày không hợp lệ!\nVui lòng nhập theo định dạng: YYYY-MM-DD (ví dụ: 2025-12-16)")
+                return
+        
+        self._apply_date_value(date_str)
+
+    def _apply_date_value(self, date_str):
+        """Áp dụng giá trị ngày và cập nhật config"""
+        try:
+            self.config_manager.set_selected_date(date_str)
+            self._update_lunar_display(date_str)
+            messagebox.showinfo("Thành công", f"Đã chọn ngày quy y: {date_str}")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể convert ngày: {str(e)}")
+
+    def _update_lunar_display(self, date_str):
+        """Cập nhật hiển thị âm lịch và Phật lịch"""
+        try:
+            date_info = LunarConverter.convert_date(date_str)
+            
+            solar_text = f"Dương lịch: {date_info['solar_day']}/{date_info['solar_month']}/{date_info['solar_year']}"
+            lunar_text = f"Âm lịch: {date_info['lunar_day']}/{date_info['lunar_month']}/{date_info['lunar_year']}"
+            buddhist_text = f"Phật lịch: {date_info['buddhist_year']}"
+            
+            self.lunar_info_var.set(f"✅ {solar_text}  |  🌙 {lunar_text}  |  ☸️ {buddhist_text}")
+        except Exception as e:
+            self.lunar_info_var.set(f"❌ Lỗi convert: {str(e)}")
+
+    def _clear_date(self):
+        """Xóa ngày đã chọn"""
+        self.config_manager.set_selected_date(None)
+        self.lunar_info_var.set("Chưa chọn ngày")
+        if HAS_TKCALENDAR:
+            self.date_entry.delete(0, tk.END)
+        else:
+            self.date_var.set("")
+        messagebox.showinfo("Thông báo", "Đã xóa ngày quy y")
 
     def _browse_excel(self):
         filename = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")])
@@ -96,3 +231,4 @@ class GeneralTab(tk.Frame):
     def _on_vni_change(self, *args):
         self.config_manager.use_vni_font = self.use_vni_var.get()
         self.config_manager.mark_dirty()
+
