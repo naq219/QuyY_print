@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
-import subprocess
+import threading
 from datetime import datetime
 
 # Try to import tkcalendar for better date picker
@@ -13,26 +13,9 @@ except ImportError:
     HAS_TKCALENDAR = False
 
 from core.lunar_converter import LunarConverter
+from core.printer_manager import PrinterManager
 from ui.components.toast import ToastNotification
 
-
-def get_printers():
-    """Lấy danh sách máy in có sẵn trên hệ thống Windows"""
-    printers = []
-    try:
-        # Sử dụng PowerShell để lấy danh sách máy in
-        result = subprocess.run(
-            ['powershell', '-Command', 'Get-Printer | Select-Object -ExpandProperty Name'],
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
-        if result.returncode == 0:
-            printers = [p.strip() for p in result.stdout.strip().split('\n') if p.strip()]
-    except Exception as e:
-        print(f"[GeneralTab] Không thể lấy danh sách máy in: {e}")
-    
-    return printers if printers else ["(Máy in mặc định)"]
 
 class GeneralTab(tk.Frame):
     def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
@@ -55,8 +38,9 @@ class GeneralTab(tk.Frame):
         self.lunar_info_var = tk.StringVar(value="Chưa chọn ngày")
         
         # Printer variable
-        self.printer_var = tk.StringVar(value="(Máy in mặc định)")
+        self.printer_var = tk.StringVar()
         self.printers_list = []
+        self._is_loading_printers = False  # Flag tránh trigger event khi đang load
         
         self._build_ui()
         self._load_saved_date()
@@ -123,7 +107,7 @@ class GeneralTab(tk.Frame):
         tk.Label(lunar_frame, textvariable=self.lunar_info_var, font=("Arial", 10, "bold"), 
                  fg="#2c3e50", bg="#f8f9fa", justify=tk.LEFT, anchor=tk.W).pack(fill=tk.X)
         
-        # 4. Máy in 🖨️ - Đặt ngang hàng với ngày quy y
+        # 4. Máy in 🖨️
         self._build_section(content_frame, "4. Máy In 🖨️")
         printer_frame = tk.Frame(self.last_section)
         printer_frame.pack(fill=tk.X)
@@ -138,6 +122,9 @@ class GeneralTab(tk.Frame):
             state="readonly"
         )
         self.printer_combo.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Bind event khi chọn máy in -> set default trong Windows
+        self.printer_combo.bind('<<ComboboxSelected>>', self._on_printer_selected)
         
         tk.Button(printer_frame, text="🔄 Làm mới", command=self._load_printers, bg="#3498db", fg="white", font=("Arial", 9)).pack(side=tk.LEFT)
         
@@ -259,25 +246,67 @@ class GeneralTab(tk.Frame):
         self.btn_print.config(state="normal")
     
     def _load_printers(self):
-        """Load danh sách máy in từ hệ thống"""
-        self.printers_list = get_printers()
-        self.printer_combo['values'] = self.printers_list
+        """Load danh sách máy in từ hệ thống (chạy background để không block UI)"""
+        self._is_loading_printers = True
         
-        # Chọn máy in đầu tiên nếu có
-        if self.printers_list:
-            # Giữ nguyên selection nếu vẫn valid
-            current = self.printer_var.get()
-            if current not in self.printers_list:
+        def _load_in_background():
+            printers = PrinterManager.get_printers()
+            default_printer = PrinterManager.get_default_printer()
+            # Cập nhật UI từ main thread
+            self.after(0, lambda: self._update_printer_ui(printers, default_printer))
+        
+        thread = threading.Thread(target=_load_in_background, daemon=True)
+        thread.start()
+    
+    def _update_printer_ui(self, printers, default_printer):
+        """Cập nhật UI máy in (gọi từ main thread)"""
+        try:
+            self.printers_list = printers
+            self.printer_combo['values'] = self.printers_list
+            
+            if default_printer and default_printer in self.printers_list:
+                self.printer_var.set(default_printer)
+            elif self.printers_list and self.printers_list[0] != "(Không có máy in)":
                 self.printer_var.set(self.printers_list[0])
+            else:
+                self.printer_var.set("(Không có máy in)")
+                
+            print(f"[GeneralTab] Đã load {len(self.printers_list)} máy in, mặc định: {self.printer_var.get()}")
+        finally:
+            self._is_loading_printers = False
+    
+    def _on_printer_selected(self, event=None):
+        """Callback khi user chọn máy in từ dropdown -> set default trong Windows luôn (chạy background)"""
+        if self._is_loading_printers:
+            return  # Đang load, không trigger
+            
+        selected = self.printer_var.get()
+        if not selected or selected == "(Không có máy in)":
+            return
+            
+        # Chạy set default printer trong thread riêng để không block UI
+        def _set_in_background():
+            success, message = PrinterManager.set_default_printer(selected)
+            # Cập nhật UI từ main thread
+            self.after(0, lambda: self._show_printer_result(success, message))
+        
+        thread = threading.Thread(target=_set_in_background, daemon=True)
+        thread.start()
+    
+    def _show_printer_result(self, success, message):
+        """Hiển thị kết quả set printer (gọi từ main thread)"""
+        if success:
+            ToastNotification.success(self, f"🖨️ {message}")
+        else:
+            ToastNotification.show(self, f"⚠️ {message}", bg_color="#e67e22", position="bottom")
     
     def get_selected_printer(self):
-        """Trả về tên máy in được chọn, hoặc None nếu dùng máy in mặc định"""
+        """Trả về tên máy in được chọn (luôn là máy in mặc định vì đã set khi chọn)"""
         selected = self.printer_var.get()
-        if selected == "(Máy in mặc định)" or not selected:
+        if selected == "(Không có máy in)" or not selected:
             return None
         return selected
         
     def _on_vni_change(self, *args):
         self.config_manager.use_vni_font = self.use_vni_var.get()
         self.config_manager.mark_dirty()
-

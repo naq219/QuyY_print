@@ -29,7 +29,9 @@ class PrintPreviewWindow(tk.Toplevel):
         self.df = df
         self.config_manager = config_manager
         self.pdf_service = pdf_service
-        self.printer_name = printer_name  # Máy in được chọn từ tab Chính
+        # Máy in mặc định đã được set trong Windows khi user chọn ở tab Chính
+        # Nên không cần truyền printer_name riêng nữa, dùng None = máy in mặc định
+        self.printer_name = printer_name
         
         self.current_index = 0
         self.total_records = len(df)
