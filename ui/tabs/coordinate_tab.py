@@ -136,6 +136,12 @@ class CoordinateTab(tk.Frame):
         
         # Button lưu cấu hình
         tk.Button(toolbar, text="💾 Lưu cấu hình", command=self._save_config, font=("Arial", 8, "bold"), bg="#27ae60", fg="white", width=14).pack(pady=2)
+        
+        # Separator
+        ttk.Separator(toolbar, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        
+        # Button in thử
+        tk.Button(toolbar, text="🖨️ In thử", command=self._test_print, font=("Arial", 8, "bold"), bg="#e67e22", fg="white", width=14).pack(pady=2)
 
     def _load_bg(self):
         self.canvas.delete("bg") # Clear old bg
@@ -528,3 +534,66 @@ class CoordinateTab(tk.Frame):
         self.config_manager.mark_dirty()  # Đánh dấu thay đổi, không auto-save
         self.status_var.set(f"*Đã thay đổi - Chưa lưu*")
         self.refresh()
+
+    def _test_print(self):
+        """In thử 1 trang PDF mẫu với dữ liệu mẫu để kiểm tra toạ độ"""
+        import tempfile
+        import threading
+        
+        self.status_var.set("🖨️ Đang tạo bản in thử...")
+        
+        def _do_print():
+            try:
+                from core.pdf_generator import PDFGenerator
+                from core.pdf_service import PDFService
+                
+                generator = PDFGenerator()
+                pdf_service = PDFService()
+                
+                # Tạo dữ liệu mẫu
+                sample_data = dict(SAMPLE_DATA)
+                
+                # Tạo file PDF tạm
+                temp_file = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False, prefix="quyy_test_")
+                temp_path = temp_file.name
+                temp_file.close()
+                
+                # Tạo PDF với toạ độ hiện tại
+                use_vni = getattr(self.config_manager, "use_vni_font", True)
+                generator.create_single_pdf(
+                    sample_data,
+                    temp_path,
+                    field_positions=self.config_manager.field_positions,
+                    custom_fields=self.config_manager.custom_fields,
+                    use_vni=use_vni
+                )
+                
+                # In ra máy in mặc định
+                pdf_service.print_file(temp_path, printer_name=None)
+                
+                # Cập nhật UI từ main thread
+                self.after(0, lambda: self._on_test_print_done(True, "Đã gửi bản in thử ra máy in mặc định!"))
+                
+                # Xóa file tạm sau 10 giây (đợi máy in nhận xong)
+                import time
+                time.sleep(10)
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
+                    
+            except Exception as e:
+                self.after(0, lambda: self._on_test_print_done(False, f"Lỗi in thử: {str(e)}"))
+        
+        thread = threading.Thread(target=_do_print, daemon=True)
+        thread.start()
+    
+    def _on_test_print_done(self, success, message):
+        """Callback sau khi in thử xong (gọi từ main thread)"""
+        if success:
+            self.status_var.set(f"✅ {message}")
+            ToastNotification.success(self, f"🖨️ {message}")
+        else:
+            self.status_var.set(f"❌ {message}")
+            ToastNotification.show(self, f"⚠️ {message}", bg_color="#e74c3c", position="bottom")
+
