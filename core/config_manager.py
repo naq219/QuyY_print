@@ -18,7 +18,13 @@ class ConfigManager:
     
     CONFIG_FILENAME = "config.json"
     
-    def __init__(self):
+    def __init__(self, config_path=None):
+        """
+        Args:
+            config_path: Đường dẫn file config.
+                - Nếu là đường dẫn file -> load config từ file đó
+                - Nếu None -> tạo config mới với giá trị mặc định (chưa lưu)
+        """
         # Defaults
         self.field_positions = copy.deepcopy(FIELD_POSITIONS)
         self.excel_mapping = copy.deepcopy(EXCEL_FIELD_MAPPING)
@@ -36,12 +42,28 @@ class ConfigManager:
         # Dirty flag - theo dõi trạng thái thay đổi chưa lưu
         self._dirty = False
         
-        # Lấy đường dẫn config file (cùng thư mục exe)
-        self.config_path = get_config_path()
+        # Config path & trạng thái "tạo mới"
+        self.config_path = config_path
+        self.is_new_config = (config_path is None)  # True = chưa có file, cần save_as
         
-        # Khởi tạo và load config
-        self._init_config()
-        self.load()
+        # Load config nếu có file
+        if self.config_path and os.path.exists(self.config_path):
+            self.load()
+            print(f"[ConfigManager] Đã load config từ: {self.config_path}")
+        else:
+            if self.is_new_config:
+                print("[ConfigManager] Tạo config mới (chưa lưu)")
+            else:
+                print(f"[ConfigManager] File config không tồn tại: {self.config_path}")
+    
+    def has_config_path(self):
+        """Kiểm tra đã có đường dẫn file config chưa"""
+        return self.config_path is not None
+    
+    def set_config_path(self, path):
+        """Set đường dẫn file config (dùng khi save_as)"""
+        self.config_path = path
+        self.is_new_config = False
     
     def mark_dirty(self):
         """Đánh dấu có thay đổi chưa lưu"""
@@ -54,12 +76,6 @@ class ConfigManager:
     def clear_dirty(self):
         """Xóa trạng thái dirty (sau khi lưu thành công)"""
         self._dirty = False
-
-    def _init_config(self):
-        """Khởi tạo file config nếu chưa tồn tại"""
-        if not os.path.exists(self.config_path):
-            print(f"[ConfigManager] Tạo file config mới: {self.config_path}")
-            self._save_default_config()
     
     def _save_default_config(self):
         """Lưu config mặc định"""
@@ -104,7 +120,14 @@ class ConfigManager:
             print(f"[ConfigManager] Lỗi load config: {e}")
 
     def save(self):
-        """Save configuration to config.json"""
+        """Save configuration to file
+        
+        Raises:
+            Exception nếu chưa có config_path (cần gọi set_config_path trước)
+        """
+        if not self.config_path:
+            raise Exception("NEED_SAVE_AS")  # Signal cho UI biết cần hỏi user chọn nơi lưu
+        
         try:
             data = {
                 "field_positions": self.field_positions,
@@ -115,9 +138,12 @@ class ConfigManager:
                 "export_mode": self.export_mode
             }
             self._save_file(self.config_path, data)
-            self.clear_dirty()  # Xóa dirty flag sau khi lưu thành công
+            self.clear_dirty()
+            self.is_new_config = False
             print(f"[ConfigManager] Đã lưu config: {self.config_path}")
         except Exception as e:
+            if str(e) == "NEED_SAVE_AS":
+                raise
             raise Exception(f"Lỗi lưu config: {e}")
 
     def _save_file(self, filepath, data):
@@ -226,7 +252,7 @@ class ConfigManager:
             self.mark_dirty()  # Đánh dấu đã thay đổi, không auto-save
 
     def load_from_file(self, filepath):
-        """Load config từ file bên ngoài (import)"""
+        """Load config từ file bên ngoài (import) - cập nhật config_path"""
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -238,8 +264,18 @@ class ConfigManager:
                 self.custom_fields = data["custom_fields"]
             if "excel_mapping" in data:
                 self.excel_mapping = data["excel_mapping"]
-                
-            self.save()
+            if "selected_date" in data:
+                self.selected_date = data["selected_date"]
+            if "use_vni_font" in data:
+                self.use_vni_font = data["use_vni_font"]
+            if "export_mode" in data:
+                self.export_mode = data["export_mode"]
+            
+            # Cập nhật config_path sang file mới
+            self.config_path = filepath
+            self.is_new_config = False
+            self.clear_dirty()
+            
             return True
         except Exception as e:
             raise e

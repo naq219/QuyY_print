@@ -17,15 +17,17 @@ from ui.tabs.settings_tab import SettingsTab
 from ui.tabs.guide_tab import GuideTab
 
 class MainWindow:
-    def __init__(self, root):
+    def __init__(self, root, config_path=None):
         self.root = root
-        self.root.title("Ứng dụng In Lá Phái Quy Y - v2.0 (MVC)")
         self.root.geometry("900x750")
         self.root.resizable(True, True)
         
-        # 1. Services
-        self.config_manager = ConfigManager()
+        # 1. Services - nhận config_path từ config chooser
+        self.config_manager = ConfigManager(config_path=config_path)
         self.pdf_service = PDFService()
+        
+        # Cập nhật title hiển thị tên file config
+        self._update_title()
         
         # 2. Variables
         self.excel_var = tk.StringVar()
@@ -56,20 +58,26 @@ class MainWindow:
         file_menu.add_separator()
         file_menu.add_command(label="Thoát", command=self.on_closing)
     
+    def _update_title(self):
+        """Cập nhật title cửa sổ hiển thị tên file config"""
+        base_title = "Ứng dụng In Lá Phái Quy Y - v2.0"
+        if self.config_manager.config_path:
+            config_name = os.path.basename(self.config_manager.config_path)
+            self.root.title(f"{base_title} - [{config_name}]")
+        else:
+            self.root.title(f"{base_title} - [Cấu hình mới *]")
+    
     def on_closing(self):
         """Xử lý khi thoát app - hỏi lưu nếu có thay đổi chưa lưu"""
-        if self.config_manager.is_dirty():
+        if self.config_manager.is_dirty() or self.config_manager.is_new_config:
             result = messagebox.askyesnocancel(
                 "Lưu cấu hình?",
                 "Bạn có thay đổi chưa lưu.\nBạn có muốn lưu cấu hình trước khi thoát?"
             )
             if result is True:  # Yes - Lưu và thoát
-                try:
-                    self.config_manager.save()
-                except Exception as e:
-                    messagebox.showerror("Lỗi lưu", str(e))
-                    return  # Không thoát nếu lưu thất bại
-                self.root.destroy()
+                if self._do_save():
+                    self.root.destroy()
+                # Nếu lưu thất bại hoặc user cancel save-as, ở lại app
             elif result is False:  # No - Thoát không lưu
                 self.root.destroy()
             # Cancel - Không làm gì, ở lại app
@@ -286,12 +294,52 @@ class MainWindow:
     def unlock_ui(self):
         self.tab_general.unlock_ui()
 
-    def save_config(self):
+    def _do_save(self):
+        """Thực hiện lưu config. Nếu config mới -> hỏi save-as.
+        Returns: True nếu lưu thành công, False nếu thất bại/cancel
+        """
         try:
             self.config_manager.save()
-            messagebox.showinfo("Thành công", "Đã lưu cấu hình")
+            self._update_title()
+            return True
+        except Exception as e:
+            if str(e) == "NEED_SAVE_AS":
+                # Config mới, cần hỏi user chọn nơi lưu
+                return self._save_as_config()
+            else:
+                messagebox.showerror("Lỗi lưu", str(e))
+                return False
+    
+    def _save_as_config(self):
+        """Hỏi user chọn thư mục và tên file để lưu config mới.
+        Returns: True nếu lưu thành công, False nếu cancel
+        """
+        filepath = filedialog.asksaveasfilename(
+            title="Lưu file cấu hình",
+            defaultextension=".json",
+            initialfile="config.json",
+            filetypes=[("JSON Config", "*.json"), ("Tất cả file", "*.*")]
+        )
+        if not filepath:
+            return False  # User cancel
+        
+        try:
+            self.config_manager.set_config_path(filepath)
+            self.config_manager.save()
+            self._update_title()
+            # Lưu lại thư mục cho lần mở sau
+            from ui.config_chooser import ConfigChooser
+            ConfigChooser.save_last_config_path(filepath)
+            messagebox.showinfo("Thành công", f"Đã lưu cấu hình:\n{filepath}")
+            return True
         except Exception as e:
             messagebox.showerror("Lỗi", str(e))
+            return False
+    
+    def save_config(self):
+        if self._do_save():
+            if self.config_manager.config_path:
+                messagebox.showinfo("Thành công", f"Đã lưu cấu hình:\n{self.config_manager.config_path}")
             
     def load_config(self):
         f = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
@@ -300,6 +348,7 @@ class MainWindow:
                 self.config_manager.load_from_file(f)
                 self.tab_coord.refresh()
                 self.tab_custom.refresh()
+                self._update_title()
                 messagebox.showinfo("Thành công", "Đã load cấu hình")
             except Exception as e:
                 messagebox.showerror("Lỗi", str(e))
