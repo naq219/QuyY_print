@@ -115,7 +115,7 @@ class CoordinateTab(tk.Frame):
         tk.Label(toolbar, text="Click: chọn 1", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
         tk.Label(toolbar, text="Ctrl+Click: nhiều", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
         tk.Label(toolbar, text="Ctrl+A: tất cả", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
-        tk.Label(toolbar, text="Esc: bỏ chọn", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
+        
         
         # Separator
         ttk.Separator(toolbar, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)

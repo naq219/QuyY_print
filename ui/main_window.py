@@ -60,7 +60,7 @@ class MainWindow:
     
     def _update_title(self):
         """Cập nhật title cửa sổ hiển thị tên file config"""
-        base_title = "Ứng dụng In Lá Phái Quy Y - v2.0"
+        base_title = "Ứng dụng In Lá Phái Quy Y - v2.1"
         if self.config_manager.config_path:
             config_name = os.path.basename(self.config_manager.config_path)
             self.root.title(f"{base_title} - [{config_name}]")

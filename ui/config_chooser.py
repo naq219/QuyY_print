@@ -99,7 +99,7 @@ class ConfigChooser:
         
         tk.Label(
             header_frame,
-            text="v2.0",
+            text="v2.1",
             font=("Arial", 8),
             bg="#2c3e50",
             fg="#7f8c8d"
