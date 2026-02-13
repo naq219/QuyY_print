@@ -39,15 +39,12 @@ class CoordinateTab(tk.Frame):
         self.status_var = status_var
         self.bg_image = None
         self.tk_bg_image = None
-        self.drag_data = {"x": 0, "y": 0, "item": None, "field": None}
-        
         # Field đang được chọn (highlight) để điều khiển bằng phím
         self.selected_item = None
         self.selected_field = None
         
-        # Multi-select mode
-        self.multi_select_mode = False
-        self.selected_items = {}  # {field_name: canvas_item_id}
+        # Multi-select: {field_name: canvas_item_id}
+        self.selected_items = {}
         
         self._build_ui()
         self.refresh()
@@ -63,7 +60,7 @@ class CoordinateTab(tk.Frame):
         self._load_bg()
         
         # 2. Controls
-        controls_frame = tk.LabelFrame(self, text="Danh sách Fields (Kéo thả trên hình hoặc sửa số liệu bên dưới)", height=200)
+        controls_frame = tk.LabelFrame(self, text="Danh sách Fields (Click chọn, Ctrl+Click chọn nhiều, phím mũi tên di chuyển)", height=200)
         controls_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
         
         columns = ("Field", "X", "Y", "Size", "Align")
@@ -80,19 +77,22 @@ class CoordinateTab(tk.Frame):
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Bindings cho chuột
+        # Click vào field để chọn, Ctrl+Click để chọn nhiều
         self.canvas.tag_bind("field", "<ButtonPress-1>", self.on_press)
-        self.canvas.tag_bind("field", "<ButtonRelease-1>", self.on_release)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
+        # Click vào vùng trống để bỏ chọn
+        self.canvas.bind("<ButtonPress-1>", self._on_canvas_click)
         self.tree.bind("<Double-1>", self._on_tree_edit)
         
         # Bindings cho phím mũi tên (điều khiển field đã chọn)
-        # Bind vào canvas để nhận keyboard events
         self.canvas.bind("<Left>", self.on_arrow_key)
         self.canvas.bind("<Right>", self.on_arrow_key)
         self.canvas.bind("<Up>", self.on_arrow_key)
         self.canvas.bind("<Down>", self.on_arrow_key)
         self.canvas.bind("<Escape>", self.on_deselect)
+        
+        # Ctrl+A để chọn tất cả
+        self.canvas.bind("<Control-a>", lambda e: self._select_all())
+        self.canvas.bind("<Control-A>", lambda e: self._select_all())
         
         # Cho phép canvas nhận focus
         self.canvas.config(takefocus=True)
@@ -110,26 +110,12 @@ class CoordinateTab(tk.Frame):
         # Separator
         ttk.Separator(toolbar, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
         
-        # Label chọn
+        # Hướng dẫn phím tắt
         tk.Label(toolbar, text="Chọn field:", font=("Arial", 8, "bold"), bg="#ecf0f1").pack(pady=(0, 2))
-        
-        # Multi-select toggle
-        self.multi_select_var = tk.BooleanVar(value=False)
-        self.btn_multi = tk.Checkbutton(
-            toolbar, 
-            text="Chọn nhiều", 
-            variable=self.multi_select_var,
-            command=self._toggle_multi_select,
-            font=("Arial", 8),
-            bg="#ecf0f1"
-        )
-        self.btn_multi.pack(pady=2)
-        
-        # Button chọn tất cả
-        tk.Button(toolbar, text="✔️ Chọn tất cả", command=self._select_all, font=("Arial", 8), bg="#3498db", fg="white", width=14).pack(pady=2)
-        
-        # Button bỏ chọn
-        tk.Button(toolbar, text="✖️ Bỏ chọn", command=self._deselect_all, font=("Arial", 8), bg="#e74c3c", fg="white", width=14).pack(pady=2)
+        tk.Label(toolbar, text="Click: chọn 1", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
+        tk.Label(toolbar, text="Ctrl+Click: nhiều", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
+        tk.Label(toolbar, text="Ctrl+A: tất cả", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
+        tk.Label(toolbar, text="Esc: bỏ chọn", font=("Arial", 7), bg="#ecf0f1", fg="#666").pack()
         
         # Separator
         ttk.Separator(toolbar, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
@@ -256,102 +242,76 @@ class CoordinateTab(tk.Frame):
         self.tree.insert("", tk.END, iid=name, values=(name, f"{x_mm:.1f}", f"{y_mm:.1f}", size, align))
 
     def on_press(self, event):
+        """Click vào field để chọn, Ctrl+Click để chọn/bỏ chọn nhiều"""
         item = self.canvas.find_closest(event.x, event.y)[0]
         tags = self.canvas.gettags(item)
-        if "field" in tags:
-            # Tìm tên field
-            field_name = None
-            for tag in tags:
-                if tag != "field" and tag != "current":
-                    field_name = tag
-                    break
-            
-            if self.multi_select_mode:
-                # Chế độ chọn nhiều
-                if field_name in self.selected_items:
-                    # Đang chọn rồi -> bỏ chọn
-                    self._unhighlight_field(item, field_name)
-                    del self.selected_items[field_name]
-                else:
-                    # Thêm vào danh sách chọn
-                    self.selected_items[field_name] = item
-                    self.canvas.itemconfig(item, fill="#00ff00")  # Highlight màu xanh lá
-                
-                self.status_var.set(f"Đã chọn {len(self.selected_items)} field")
-                
-                # Vẫn lưu drag data để kéo thả
-                if self.selected_items:
-                    self.drag_data["x"] = event.x
-                    self.drag_data["y"] = event.y
-                    self.drag_data["item"] = "multi"  # Đánh dấu là multi-drag
+        if "field" not in tags:
+            return
+        
+        # Tìm tên field
+        field_name = None
+        for tag in tags:
+            if tag != "field" and tag != "current":
+                field_name = tag
+                break
+        
+        if not field_name:
+            return
+        
+        ctrl_pressed = event.state & 0x4  # Ctrl key
+        
+        if ctrl_pressed:
+            # Ctrl+Click: toggle chọn/bỏ chọn field này (multi-select)
+            if field_name in self.selected_items:
+                # Đang chọn rồi -> bỏ chọn
+                self._unhighlight_field(item, field_name)
+                del self.selected_items[field_name]
+                # Nếu cũng là selected_item đơn, bỏ nó
+                if self.selected_field == field_name:
+                    self.selected_item = None
+                    self.selected_field = None
             else:
-                # Chế độ chọn đơn
-                # Bỏ highlight field cũ (nếu có)
-                if self.selected_item and self.selected_item != item:
-                    self._unhighlight_field(self.selected_item, self.selected_field)
-                
-                self.drag_data["item"] = item
-                self.drag_data["x"] = event.x
-                self.drag_data["y"] = event.y
-                self.drag_data["field"] = field_name
-                
-                # Highlight và lưu selection để điều khiển bằng phím
-                self.selected_item = item
-                self.selected_field = field_name
-                self.canvas.itemconfig(item, fill="#00ff00")  # Highlight màu xanh lá
+                # Thêm vào danh sách chọn
+                self.selected_items[field_name] = item
+                self.canvas.itemconfig(item, fill="#00ff00")
             
-            # Focus vào canvas để nhận keyboard events
-            self.canvas.focus_set()
+            self.status_var.set(f"Đã chọn {len(self.selected_items)} field - Dùng phím mũi tên để di chuyển")
+        else:
+            # Click thường: chọn đơn (bỏ chọn tất cả trước)
+            self._deselect_all_silent()
             
-            if not self.multi_select_mode:
-                self.status_var.set(f"Đã chọn: {field_name} - Dùng phím mũi tên để di chuyển")
-
-    def on_drag(self, event):
-        if self.drag_data["item"] == "multi" and self.selected_items:
-            # Kéo nhiều field cùng lúc
-            dx = event.x - self.drag_data["x"]
-            dy = event.y - self.drag_data["y"]
+            self.selected_item = item
+            self.selected_field = field_name
+            self.selected_items[field_name] = item
+            self.canvas.itemconfig(item, fill="#00ff00")
             
-            for field_name, item_id in self.selected_items.items():
-                self.canvas.move(item_id, dx, dy)
-            
-            self.drag_data["x"] = event.x
-            self.drag_data["y"] = event.y
-        elif self.drag_data["item"] and self.drag_data["item"] != "multi":
-            # Kéo 1 field
-            item = self.drag_data["item"]
-            dx = event.x - self.drag_data["x"]
-            dy = event.y - self.drag_data["y"]
-            self.canvas.move(item, dx, dy)
-            self.drag_data["x"] = event.x
-            self.drag_data["y"] = event.y
-
-    def on_release(self, event):
-        if self.drag_data["item"] == "multi" and self.selected_items:
-            # Cập nhật vị trí cho tất cả field đã chọn
-            for field_name, item_id in self.selected_items.items():
-                coords = self.canvas.coords(item_id)
-                if coords:
-                    new_x_mm = round(coords[0] / SCALE, 1)
-                    new_y_mm = round(coords[1] / SCALE, 1)
-                    self._update_field_position(field_name, new_x_mm, new_y_mm)
-            
-            # Giữ nguyên selection
-            self.drag_data["item"] = None
-        elif self.drag_data["item"] and self.drag_data["item"] != "multi":
-            item = self.drag_data["item"]
-            name = self.drag_data["field"]
-            
-            if item and name:
-                coords = self.canvas.coords(item)
-                new_x_mm = round(coords[0] / SCALE, 1)
-                new_y_mm = round(coords[1] / SCALE, 1)
-                
-                self._update_field_position(name, new_x_mm, new_y_mm)
-
-            # Reset drag data nhưng GIỮ NGUYÊN selection để có thể dùng phím mũi tên
-            self.drag_data["item"] = None
-            self.drag_data["field"] = None
+            self.status_var.set(f"Đã chọn: {field_name} - Dùng phím mũi tên để di chuyển")
+        
+        # Focus vào canvas để nhận keyboard events
+        self.canvas.focus_set()
+    
+    def _on_canvas_click(self, event):
+        """Click vào vùng trống trên canvas -> bỏ chọn tất cả"""
+        # Kiểm tra xem click có trúng field nào không
+        items = self.canvas.find_overlapping(event.x - 2, event.y - 2, event.x + 2, event.y + 2)
+        for item in items:
+            tags = self.canvas.gettags(item)
+            if "field" in tags:
+                return  # Click trúng field, để on_press xử lý
+        
+        # Click vào vùng trống -> bỏ chọn tất cả
+        self._deselect_all()
+    
+    def _deselect_all_silent(self):
+        """Bỏ chọn tất cả nhưng không cập nhật status bar"""
+        for field_name, item_id in self.selected_items.items():
+            self._unhighlight_field(item_id, field_name)
+        self.selected_items.clear()
+        
+        if self.selected_item and self.selected_field:
+            self._unhighlight_field(self.selected_item, self.selected_field)
+            self.selected_item = None
+            self.selected_field = None
     
     def on_arrow_key(self, event):
         """Xử lý phím mũi tên để di chuyển field đã chọn"""
@@ -366,8 +326,8 @@ class CoordinateTab(tk.Frame):
         elif event.keysym == "Down":
             dy = self.ARROW_MOVE_PX
         
-        if self.multi_select_mode and self.selected_items:
-            # Di chuyển nhiều field
+        if self.selected_items:
+            # Di chuyển tất cả field đã chọn
             for field_name, item_id in self.selected_items.items():
                 self.canvas.move(item_id, dx, dy)
                 
@@ -403,26 +363,10 @@ class CoordinateTab(tk.Frame):
         except:
             pass
     
-    def _toggle_multi_select(self):
-        """Bật/tắt chế độ chọn nhiều"""
-        self.multi_select_mode = self.multi_select_var.get()
-        
-        if self.multi_select_mode:
-            # Chuyển từ đơn sang nhiều - giữ nguyên selection hiện tại nếu có
-            if self.selected_item and self.selected_field:
-                self.selected_items[self.selected_field] = self.selected_item
-            self.status_var.set("Chế độ chọn nhiều: Click để chọn/bỏ chọn các field")
-        else:
-            # Chuyển từ nhiều sang đơn - bỏ chọn tất cả
-            self._deselect_all()
-            self.status_var.set("Chế độ chọn đơn")
+
     
     def _select_all(self):
-        """Chọn tất cả các field"""
-        # Bật chế độ chọn nhiều nếu chưa bật
-        if not self.multi_select_mode:
-            self.multi_select_var.set(True)
-            self.multi_select_mode = True
+        """Chọn tất cả các field (Ctrl+A)"""
         
         # Xóa selection cũ
         self.selected_items.clear()
@@ -467,8 +411,24 @@ class CoordinateTab(tk.Frame):
             self.status_var.set("✅ Đã lưu cấu hình thành công!")
             ToastNotification.success(self, "Đã lưu cấu hình!")
         except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Lỗi", f"Không thể lưu cấu hình: {str(e)}")
+            if str(e) == "NEED_SAVE_AS":
+                # Config mới chưa có đường dẫn, hỏi user chọn nơi lưu
+                filepath = filedialog.asksaveasfilename(
+                    title="Lưu file cấu hình",
+                    defaultextension=".json",
+                    initialfile="config.json",
+                    filetypes=[("JSON Config", "*.json"), ("Tất cả file", "*.*")]
+                )
+                if filepath:
+                    try:
+                        self.config_manager.set_config_path(filepath)
+                        self.config_manager.save()
+                        self.status_var.set("✅ Đã lưu cấu hình thành công!")
+                        ToastNotification.success(self, "Đã lưu cấu hình!")
+                    except Exception as e2:
+                        messagebox.showerror("Lỗi", f"Không thể lưu cấu hình: {str(e2)}")
+            else:
+                messagebox.showerror("Lỗi", f"Không thể lưu cấu hình: {str(e)}")
 
     
     def _update_field_position(self, field_name, new_x_mm, new_y_mm):
