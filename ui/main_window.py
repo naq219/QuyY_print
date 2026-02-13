@@ -129,6 +129,9 @@ class MainWindow:
         self.notebook.add(self.tab_settings, text="  ⚙️ Cài đặt  ")
         self.notebook.add(self.tab_guide, text="  📖 Hướng dẫn  ")
         
+        # Track tab hiện tại để kiểm tra dirty khi chuyển tab
+        self._previous_tab = None
+        
         # Bind event để refresh khi chuyển tab
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         
@@ -360,11 +363,34 @@ class MainWindow:
             self.tab_custom.refresh()
 
     def _on_tab_changed(self, event):
-        """Refresh tab khi người dùng chuyển sang tab khác"""
+        """Refresh tab khi người dùng chuyển sang tab khác + hỏi lưu nếu cần"""
         try:
             selected_tab = self.notebook.select()
             tab_text = self.notebook.tab(selected_tab, "text")
             
+            # Kiểm tra nếu đang rời tab Toạ Độ hoặc Custom Fields mà có thay đổi chưa lưu
+            if self._previous_tab and self.config_manager.is_dirty():
+                if "Tọa Độ" in self._previous_tab or "Custom" in self._previous_tab:
+                    result = messagebox.askyesno(
+                        "Lưu cấu hình?",
+                        f"Bạn có thay đổi chưa lưu ở tab {self._previous_tab.strip()}.\n" 
+                        f"Bạn có muốn lưu cấu hình không?",
+                        icon="question"
+                    )
+                    if result:
+                        self._do_save()
+                    else:
+                        # Không lưu → reload config từ file để huỷ thay đổi
+                        if self.config_manager.config_path:
+                            self.config_manager.load()
+                        self.config_manager.clear_dirty()
+                        self.tab_coord.refresh()
+                        self.tab_custom.refresh()
+            
+            # Cập nhật tab hiện tại
+            self._previous_tab = tab_text
+            
+            # Refresh tab đích
             if "Tọa Độ" in tab_text:
                 self.tab_coord.refresh()
             elif "Custom" in tab_text:
