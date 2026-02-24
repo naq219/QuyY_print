@@ -84,7 +84,7 @@ class GeneralTab(tk.Frame):
                 background='#3498db',
                 foreground='white',
                 borderwidth=2,
-                date_pattern='yyyy-mm-dd',
+                date_pattern='dd/MM/yyyy',
                 font=("Arial", 10)
             )
             self.date_entry.pack(side=tk.LEFT, padx=(0, 10))
@@ -101,12 +101,40 @@ class GeneralTab(tk.Frame):
         tk.Button(date_frame, text="Áp dụng", command=self._apply_date, bg="#9b59b6", fg="white", font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=(0, 10))
         tk.Button(date_frame, text="Xóa", command=self._clear_date, bg="#95a5a6", fg="white", font=("Arial", 10)).pack(side=tk.LEFT)
         
-        # Lunar calendar display
+        # Lunar calendar - editable entries
         lunar_frame = tk.Frame(self.last_section, bg="#f8f9fa", padx=10, pady=8)
         lunar_frame.pack(fill=tk.X, pady=(10, 0))
         
-        tk.Label(lunar_frame, textvariable=self.lunar_info_var, font=("Arial", 10, "bold"), 
-                 fg="#2c3e50", bg="#f8f9fa", justify=tk.LEFT, anchor=tk.W).pack(fill=tk.X)
+        # Row 1: Âm lịch
+        lunar_row1 = tk.Frame(lunar_frame, bg="#f8f9fa")
+        lunar_row1.pack(fill=tk.X, pady=(0, 4))
+        
+        tk.Label(lunar_row1, text="🌙 Âm lịch:", font=("Arial", 10, "bold"), fg="#2c3e50", bg="#f8f9fa").pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(lunar_row1, text="Ngày", font=("Arial", 9), fg="#555", bg="#f8f9fa").pack(side=tk.LEFT)
+        self.entry_ngay_am = tk.Entry(lunar_row1, font=("Arial", 10), width=4, justify="center")
+        self.entry_ngay_am.pack(side=tk.LEFT, padx=(3, 8))
+        
+        tk.Label(lunar_row1, text="Tháng", font=("Arial", 9), fg="#555", bg="#f8f9fa").pack(side=tk.LEFT)
+        self.entry_thang_am = tk.Entry(lunar_row1, font=("Arial", 10), width=4, justify="center")
+        self.entry_thang_am.pack(side=tk.LEFT, padx=(3, 8))
+        
+        tk.Label(lunar_row1, text="Năm", font=("Arial", 9), fg="#555", bg="#f8f9fa").pack(side=tk.LEFT)
+        self.entry_nam_am = tk.Entry(lunar_row1, font=("Arial", 10), width=12, justify="center")
+        self.entry_nam_am.pack(side=tk.LEFT, padx=(3, 0))
+        
+        # Row 2: Phật lịch
+        lunar_row2 = tk.Frame(lunar_frame, bg="#f8f9fa")
+        lunar_row2.pack(fill=tk.X)
+        
+        tk.Label(lunar_row2, text="☸️ Phật lịch:", font=("Arial", 10, "bold"), fg="#2c3e50", bg="#f8f9fa").pack(side=tk.LEFT, padx=(0, 8))
+        self.entry_phat_lich = tk.Entry(lunar_row2, font=("Arial", 10), width=8, justify="center")
+        self.entry_phat_lich.pack(side=tk.LEFT, padx=(3, 10))
+        
+        tk.Label(lunar_row2, text="(tự điền khi chọn ngày, có thể chỉnh sửa)", font=("Arial", 8), fg="#999", bg="#f8f9fa").pack(side=tk.LEFT)
+        
+        # Nút đồng bộ lại giá trị đã chỉnh sửa
+        tk.Button(lunar_row2, text="✔ Lưu âm lịch", command=self._sync_lunar_to_config,
+                  bg="#27ae60", fg="white", font=("Arial", 8, "bold"), relief="flat", padx=6).pack(side=tk.RIGHT)
         
         # 4. Máy in 🖨️
         self._build_section(content_frame, "4. Máy In 🖨️")
@@ -218,15 +246,23 @@ class GeneralTab(tk.Frame):
             messagebox.showerror("Lỗi", f"Không thể convert ngày: {str(e)}")
 
     def _update_lunar_display(self, date_str):
-        """Cập nhật hiển thị âm lịch và Phật lịch"""
+        """Điền âm lịch vào các ô nhập"""
         try:
             date_info = LunarConverter.convert_date(date_str)
             
-            solar_text = f"Dương lịch: {date_info['solar_day']}/{date_info['solar_month']}/{date_info['solar_year']}"
-            lunar_text = f"Âm lịch: {date_info['lunar_day']}/{date_info['lunar_month']} năm {date_info['lunar_year_name']}"
-            buddhist_text = f"Phật lịch: {date_info['buddhist_year']}"
+            self.entry_ngay_am.delete(0, tk.END)
+            self.entry_ngay_am.insert(0, str(date_info['lunar_day']))
             
-            self.lunar_info_var.set(f"✅ {solar_text}  |  🌙 {lunar_text}  |  ☸️ {buddhist_text}")
+            self.entry_thang_am.delete(0, tk.END)
+            self.entry_thang_am.insert(0, str(date_info['lunar_month']))
+            
+            self.entry_nam_am.delete(0, tk.END)
+            self.entry_nam_am.insert(0, str(date_info['lunar_year_name']))
+            
+            self.entry_phat_lich.delete(0, tk.END)
+            self.entry_phat_lich.insert(0, str(date_info['buddhist_year']))
+            
+            self.lunar_info_var.set(f"✅ Đã chọn ngày quy y")
         except Exception as e:
             self.lunar_info_var.set(f"❌ Lỗi convert: {str(e)}")
 
@@ -243,6 +279,25 @@ class GeneralTab(tk.Frame):
             self.date_entry.delete(0, tk.END)
         else:
             self.date_var.set("")
+        # Xóa các ô âm lịch
+        self.entry_ngay_am.delete(0, tk.END)
+        self.entry_thang_am.delete(0, tk.END)
+        self.entry_nam_am.delete(0, tk.END)
+        self.entry_phat_lich.delete(0, tk.END)
+    
+    def _sync_lunar_to_config(self):
+        """Đồng bộ giá trị âm lịch/Phật lịch đã chỉnh sửa vào config"""
+        lunar_map = {
+            "ngay_am": self.entry_ngay_am.get().strip(),
+            "thang_am": self.entry_thang_am.get().strip(),
+            "nam_am": self.entry_nam_am.get().strip(),
+            "phat_lich": self.entry_phat_lich.get().strip()
+        }
+        for key, val in lunar_map.items():
+            if key in self.config_manager.custom_fields:
+                self.config_manager.custom_fields[key]["value"] = val
+        self.config_manager.mark_dirty()
+        ToastNotification.success(self, "✅ Đã cập nhật âm lịch / Phật lịch")
 
     def _browse_excel(self):
         filename = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")])

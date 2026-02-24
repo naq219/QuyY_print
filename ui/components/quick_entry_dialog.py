@@ -78,7 +78,7 @@ class QuickEntryDialog(tk.Toplevel):
         
         # Kích thước và vị trí giữa màn hình
         width = 580
-        height = 560
+        height = 650
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         x = (screen_width - width) // 2
@@ -197,7 +197,7 @@ class QuickEntryDialog(tk.Toplevel):
                 background='#8e44ad',
                 foreground='white',
                 borderwidth=2,
-                date_pattern='yyyy-mm-dd',
+                date_pattern='dd/MM/yyyy',
                 font=("Arial", 11)
             )
             self.date_entry.pack(side=tk.LEFT, padx=(0, 10))
@@ -220,15 +220,36 @@ class QuickEntryDialog(tk.Toplevel):
             cursor="hand2", relief="flat", padx=8
         ).pack(side=tk.LEFT)
         
-        # Hiển thị âm lịch
-        lunar_frame = tk.Frame(form_frame, bg="#f0ebf8", padx=10, pady=6)
+        # --- Âm lịch (editable) ---
+        lunar_frame = tk.Frame(form_frame, bg="#f0ebf8", padx=10, pady=8)
         lunar_frame.pack(fill=tk.X, pady=(8, 0))
         
-        tk.Label(
-            lunar_frame, textvariable=self.lunar_info_var,
-            font=("Arial", 9, "bold"), fg="#6c3483", bg="#f0ebf8",
-            justify=tk.LEFT, anchor=tk.W
-        ).pack(fill=tk.X)
+        # Row 1: Ngày âm lịch
+        lunar_row1 = tk.Frame(lunar_frame, bg="#f0ebf8")
+        lunar_row1.pack(fill=tk.X, pady=(0, 5))
+        
+        tk.Label(lunar_row1, text="🌙 Âm lịch:", font=("Arial", 10, "bold"), fg="#6c3483", bg="#f0ebf8").pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(lunar_row1, text="Ngày", font=("Arial", 9), fg="#6c3483", bg="#f0ebf8").pack(side=tk.LEFT)
+        self.entry_ngay_am = tk.Entry(lunar_row1, font=("Arial", 10), width=4, justify="center")
+        self.entry_ngay_am.pack(side=tk.LEFT, padx=(3, 5))
+        
+        tk.Label(lunar_row1, text="Tháng", font=("Arial", 9), fg="#6c3483", bg="#f0ebf8").pack(side=tk.LEFT)
+        self.entry_thang_am = tk.Entry(lunar_row1, font=("Arial", 10), width=4, justify="center")
+        self.entry_thang_am.pack(side=tk.LEFT, padx=(3, 5))
+        
+        tk.Label(lunar_row1, text="Năm", font=("Arial", 9), fg="#6c3483", bg="#f0ebf8").pack(side=tk.LEFT)
+        self.entry_nam_am = tk.Entry(lunar_row1, font=("Arial", 10), width=10, justify="center")
+        self.entry_nam_am.pack(side=tk.LEFT, padx=(3, 0))
+        
+        # Row 2: Phật lịch
+        lunar_row2 = tk.Frame(lunar_frame, bg="#f0ebf8")
+        lunar_row2.pack(fill=tk.X)
+        
+        tk.Label(lunar_row2, text="☸️ Phật lịch:", font=("Arial", 10, "bold"), fg="#6c3483", bg="#f0ebf8").pack(side=tk.LEFT, padx=(0, 8))
+        self.entry_phat_lich = tk.Entry(lunar_row2, font=("Arial", 10), width=8, justify="center")
+        self.entry_phat_lich.pack(side=tk.LEFT, padx=(3, 0))
+        
+        tk.Label(lunar_row2, text="(tự điền khi chọn ngày dương, có thể chỉnh sửa)", font=("Arial", 8), fg="#999", bg="#f0ebf8").pack(side=tk.LEFT, padx=(10, 0))
         
         # === Action Buttons ===
         action_frame = tk.Frame(self, bg="#f5f5f5", padx=25, pady=15)
@@ -296,21 +317,36 @@ class QuickEntryDialog(tk.Toplevel):
         self._update_lunar_display(date_str)
     
     def _clear_date(self):
-        self.lunar_info_var.set("Chưa chọn ngày")
         if HAS_TKCALENDAR:
             self.date_entry.delete(0, tk.END)
         else:
             self.date_var.set("")
+        # Xóa các ô âm lịch
+        self.entry_ngay_am.delete(0, tk.END)
+        self.entry_thang_am.delete(0, tk.END)
+        self.entry_nam_am.delete(0, tk.END)
+        self.entry_phat_lich.delete(0, tk.END)
     
     def _update_lunar_display(self, date_str):
+        """Tự động điền âm lịch và Phật lịch từ ngày dương"""
         try:
             date_info = LunarConverter.convert_date(date_str)
-            solar = f"{date_info['solar_day']}/{date_info['solar_month']}/{date_info['solar_year']}"
-            lunar = f"{date_info['lunar_day']}/{date_info['lunar_month']} năm {date_info['lunar_year_name']}"
-            buddhist = f"PL {date_info['buddhist_year']}"
-            self.lunar_info_var.set(f"✅ DL: {solar}  |  🌙 ÂL: {lunar}  |  ☸️ {buddhist}")
+            
+            # Auto-fill entries
+            self.entry_ngay_am.delete(0, tk.END)
+            self.entry_ngay_am.insert(0, str(date_info['lunar_day']))
+            
+            self.entry_thang_am.delete(0, tk.END)
+            self.entry_thang_am.insert(0, str(date_info['lunar_month']))
+            
+            self.entry_nam_am.delete(0, tk.END)
+            self.entry_nam_am.insert(0, str(date_info['lunar_year_name']))
+            
+            self.entry_phat_lich.delete(0, tk.END)
+            self.entry_phat_lich.insert(0, str(date_info['buddhist_year']))
+            
         except Exception as e:
-            self.lunar_info_var.set(f"❌ Lỗi: {str(e)}")
+            print(f"[QuickEntry] Lỗi convert ngày: {e}")
     
     def _get_selected_date_str(self):
         """Lấy ngày quy y đã chọn, trả về chuỗi YYYY-MM-DD hoặc None"""
@@ -343,6 +379,15 @@ class QuickEntryDialog(tk.Toplevel):
         self.entry_dia_chi.clear()
         self._clear_date()
         self.entry_ho_ten.focus_set()
+    
+    def _get_lunar_values_from_entries(self):
+        """Lấy giá trị âm lịch/Phật lịch từ các ô nhập"""
+        return {
+            "ngay_am": self.entry_ngay_am.get().strip(),
+            "thang_am": self.entry_thang_am.get().strip(),
+            "nam_am": self.entry_nam_am.get().strip(),
+            "phat_lich": self.entry_phat_lich.get().strip()
+        }
     
     def _validate_form(self):
         """Validate form, trả về (data_dict, date_str) hoặc None nếu lỗi"""
@@ -378,14 +423,34 @@ class QuickEntryDialog(tk.Toplevel):
         return data, date_str
     
     def _prepare_config_with_date(self, date_str):
-        """Set ngày quy y vào config tạm để tạo PDF, trả về selected_date cũ"""
+        """Set ngày quy y vào config tạm để tạo PDF, trả về backup cũ"""
+        import copy
         old_date = self.config_manager.get_selected_date()
+        # Backup custom_fields values trước khi ghi đè
+        old_custom_values = {}
+        for key in ["ngay_am", "thang_am", "nam_am", "phat_lich", "ngay_duong", "thang_duong", "nam_duong"]:
+            if key in self.config_manager.custom_fields:
+                old_custom_values[key] = self.config_manager.custom_fields[key].get("value", "")
+        
+        # Set ngày dương → auto update custom_fields
         self.config_manager.set_selected_date(date_str)
-        return old_date
+        
+        # Ghi đè bằng giá trị user đã chỉnh sửa trong dialog
+        lunar_vals = self._get_lunar_values_from_entries()
+        for key, val in lunar_vals.items():
+            if key in self.config_manager.custom_fields:
+                self.config_manager.custom_fields[key]["value"] = val
+        
+        return old_date, old_custom_values
     
-    def _restore_config_date(self, old_date):
+    def _restore_config_date(self, old_state):
         """Khôi phục lại ngày quy y cũ trong config"""
+        old_date, old_custom_values = old_state
         self.config_manager.set_selected_date(old_date)
+        # Khôi phục custom_fields values
+        for key, val in old_custom_values.items():
+            if key in self.config_manager.custom_fields:
+                self.config_manager.custom_fields[key]["value"] = val
     
     # ==================== EXPORT / PRINT ====================
     
@@ -415,7 +480,7 @@ class QuickEntryDialog(tk.Toplevel):
         
         try:
             # Set ngày quy y tạm
-            old_date = self._prepare_config_with_date(date_str)
+            old_state = self._prepare_config_with_date(date_str)
             
             try:
                 # Tạo PDF
@@ -439,7 +504,7 @@ class QuickEntryDialog(tk.Toplevel):
                 
             finally:
                 # Luôn khôi phục ngày cũ
-                self._restore_config_date(old_date)
+                self._restore_config_date(old_state)
                 
         except Exception as e:
             messagebox.showerror("Lỗi", f"Không thể xuất PDF:\n{str(e)}", parent=self)
@@ -463,7 +528,7 @@ class QuickEntryDialog(tk.Toplevel):
         
         try:
             # Set ngày quy y tạm
-            old_date = self._prepare_config_with_date(date_str)
+            old_state = self._prepare_config_with_date(date_str)
             
             try:
                 # Tạo temp PDF
@@ -496,7 +561,7 @@ class QuickEntryDialog(tk.Toplevel):
                 )
                 
             finally:
-                self._restore_config_date(old_date)
+                self._restore_config_date(old_state)
                 # Cleanup temp
                 try:
                     import shutil
