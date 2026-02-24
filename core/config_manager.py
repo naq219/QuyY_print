@@ -39,6 +39,9 @@ class ConfigManager:
         # Chế độ xuất PDF: "single" (1 file) hoặc "multiple" (nhiều file)
         self.export_mode = "single"
         
+        # In có ảnh nền (phôi mẫu) hay không
+        self.use_background_image = False
+        
         # Dirty flag - theo dõi trạng thái thay đổi chưa lưu
         self._dirty = False
         
@@ -84,7 +87,8 @@ class ConfigManager:
             "excel_mapping": self.excel_mapping,
             "custom_fields": self.custom_fields,
             "use_vni_font": self.use_vni_font,
-            "export_mode": self.export_mode
+            "export_mode": self.export_mode,
+            "use_background_image": self.use_background_image
         }
         self._save_file(self.config_path, data)
 
@@ -109,6 +113,8 @@ class ConfigManager:
                             self.use_vni_font = data["use_vni_font"]
                         if "export_mode" in data:
                             self.export_mode = data["export_mode"]
+                        if "use_background_image" in data:
+                            self.use_background_image = data["use_background_image"]
                         # Backward compat check if needed, but not strictly required
                             
                 print(f"[ConfigManager] Đã load config từ: {self.config_path}")
@@ -130,7 +136,8 @@ class ConfigManager:
                 "excel_mapping": self.excel_mapping,
                 "custom_fields": self.custom_fields,
                 "use_vni_font": self.use_vni_font,
-                "export_mode": self.export_mode
+                "export_mode": self.export_mode,
+                "use_background_image": self.use_background_image
             }
             self._save_file(self.config_path, data)
             self.clear_dirty()

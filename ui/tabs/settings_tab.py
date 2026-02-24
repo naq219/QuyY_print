@@ -15,6 +15,10 @@ class SettingsTab(tk.Frame):
         self.use_vni_var = tk.BooleanVar(value=getattr(self.config_manager, "use_vni_font", True))
         self.use_vni_var.trace("w", self._on_vni_change)
         
+        # Background image variable
+        self.use_bg_var = tk.BooleanVar(value=getattr(self.config_manager, "use_background_image", False))
+        self.use_bg_var.trace("w", self._on_bg_change)
+        
         # Trace mode_var để lưu vào config khi thay đổi
         self.mode_var.trace("w", self._on_mode_change)
         
@@ -79,6 +83,24 @@ class SettingsTab(tk.Frame):
             justify=tk.LEFT
         ).pack(anchor=tk.W, pady=(10, 0))
         
+        # 3. Ảnh nền PDF
+        self._build_section(content_frame, "🖼️ Ảnh Nền (Phôi Mẫu)")
+        
+        tk.Checkbutton(
+            self.last_section, 
+            text="In kèm ảnh nền (phôi mẫu) trong PDF", 
+            variable=self.use_bg_var,
+            font=("Arial", 10)
+        ).pack(anchor=tk.W)
+        
+        tk.Label(
+            self.last_section,
+            text="• Tắt: Chỉ in chữ (khi đã có phôi in sẵn trên giấy)\n• Bật: In cả ảnh nền + chữ (khi in trên giấy trắng)",
+            font=("Arial", 9),
+            fg="#7f8c8d",
+            justify=tk.LEFT
+        ).pack(anchor=tk.W, pady=(10, 0))
+        
         # 3. Thông tin PDF
         self._build_section(content_frame, "📐 Thông Tin PDF")
         
@@ -113,4 +135,10 @@ class SettingsTab(tk.Frame):
         self.config_manager.mark_dirty()
         mode_text = "Nhiều file" if self.mode_var.get() == "multiple" else "Một file"
         self.status_var.set(f"*Đã thay đổi chế độ: {mode_text} - Chưa lưu*")
+    
+    def _on_bg_change(self, *args):
+        self.config_manager.use_background_image = self.use_bg_var.get()
+        self.config_manager.mark_dirty()
+        bg_text = "Có ảnh nền" if self.use_bg_var.get() else "Không ảnh nền"
+        self.status_var.set(f"*Đã thay đổi: {bg_text} - Chưa lưu*")
 

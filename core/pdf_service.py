@@ -98,6 +98,7 @@ class PDFService:
             field_positions = config_manager.field_positions
             custom_fields = config_manager.custom_fields
             use_vni = getattr(config_manager, "use_vni_font", True)
+            use_background = getattr(config_manager, "use_background_image", False)
             
             # --- GENERATION PHASE ---
             
@@ -135,7 +136,8 @@ class PDFService:
                             field_positions=field_positions,
                             custom_fields=custom_fields,
                             progress_callback=gen_progress,
-                            use_vni=use_vni
+                            use_vni=use_vni,
+                            use_background=use_background
                         )
                         success_count = page_count # Count pages/records
                         generated_files.append(output_path)
@@ -177,7 +179,8 @@ class PDFService:
                             output_path,
                             field_positions=field_positions,
                             custom_fields=custom_fields,
-                            use_vni=use_vni
+                            use_vni=use_vni,
+                            use_background=use_background
                         )
                         success_count += 1
                         generated_files.append(output_path)

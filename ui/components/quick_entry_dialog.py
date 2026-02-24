@@ -490,7 +490,8 @@ class QuickEntryDialog(tk.Toplevel):
                     filepath,
                     field_positions=self.config_manager.field_positions,
                     custom_fields=self.config_manager.custom_fields,
-                    use_vni=getattr(self.config_manager, "use_vni_font", True)
+                    use_vni=getattr(self.config_manager, "use_vni_font", True),
+                    use_background=getattr(self.config_manager, "use_background_image", False)
                 )
                 
                 messagebox.showinfo(
@@ -541,7 +542,8 @@ class QuickEntryDialog(tk.Toplevel):
                     temp_path,
                     field_positions=self.config_manager.field_positions,
                     custom_fields=self.config_manager.custom_fields,
-                    use_vni=getattr(self.config_manager, "use_vni_font", True)
+                    use_vni=getattr(self.config_manager, "use_vni_font", True),
+                    use_background=getattr(self.config_manager, "use_background_image", False)
                 )
                 
                 # Lấy tên máy in

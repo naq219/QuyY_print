@@ -14,7 +14,7 @@ except ImportError:
     # Fallback for testing inside core/
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from config import FIELD_POSITIONS, FONT_NAME, A4_WIDTH, A4_HEIGHT, PDF_ORIENTATION, CUSTOM_FIELDS, EXCEL_FIELD_MAPPING
-    from core.resource_manager import get_font_path
+    from core.resource_manager import get_font_path, get_phoimau_path
 
 
 class PDFGenerator:
@@ -54,7 +54,7 @@ class PDFGenerator:
                  
         return self.font_registered
     
-    def create_single_pdf(self, data, output_path, field_positions=None, custom_fields=None, use_vni=False):
+    def create_single_pdf(self, data, output_path, field_positions=None, custom_fields=None, use_vni=False, use_background=False):
         """
         Tạo PDF cho một bản ghi
         
@@ -76,6 +76,10 @@ class PDFGenerator:
         
         c = canvas.Canvas(output_path, pagesize=pagesize)
         
+        # Vẽ ảnh nền nếu bật
+        if use_background:
+            self._draw_background(c, page_width, page_height)
+        
         self.register_font()
         c.setFont(self.font_name, 12)
         
@@ -92,7 +96,7 @@ class PDFGenerator:
             
         c.save()
 
-    def create_merged_pdf(self, data_list, output_path, field_positions=None, custom_fields=None, progress_callback=None, use_vni=False):
+    def create_merged_pdf(self, data_list, output_path, field_positions=None, custom_fields=None, progress_callback=None, use_vni=False, use_background=False):
         """
         Tạo 1 file PDF chứa nhiều trang (mỗi trang 1 bản ghi)
         """
@@ -110,6 +114,10 @@ class PDFGenerator:
         for i, data in enumerate(data_list):
             c.setFont(self.font_name, 12)
             
+            # Vẽ ảnh nền nếu bật
+            if use_background:
+                self._draw_background(c, page_width, page_height)
+            
             # Draw standard fields
             for field, config in positions.items():
                 if field in data:
@@ -126,6 +134,24 @@ class PDFGenerator:
                 
         c.save()
         return total
+    
+    def _draw_background(self, c, page_width, page_height):
+        """Đặt ảnh nền (phôi mẫu) vào PDF"""
+        try:
+            from core.resource_manager import get_app_dir
+            app_dir = get_app_dir()
+            bg_path = None
+            for ext in [".jpg", ".jpeg", ".png"]:
+                path = os.path.join(app_dir, f"phoimau{ext}")
+                if os.path.exists(path):
+                    bg_path = path
+                    break
+            
+            if bg_path:
+                c.drawImage(bg_path, 0, 0, width=page_width, height=page_height,
+                           preserveAspectRatio=False, mask='auto')
+        except Exception as e:
+            print(f"[PDFGenerator] Lỗi vẽ ảnh nền: {e}")
 
     def _draw_field(self, c, text, config, page_height, use_vni=False):
         """Vẽ một trường lên canvas"""
