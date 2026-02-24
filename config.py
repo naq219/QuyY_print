@@ -62,7 +62,7 @@ EXCEL_FIELD_MAPPING = {
 # Custom fields - các trường tùy chỉnh với giá trị cố định
 # Bao gồm các trường ngày tháng (được cập nhật khi chọn ngày quy y)
 CUSTOM_FIELDS = {
-    "pl": {
+    "phat_lich": {
         "value": "",
         "x": 206.0,
         "y": 178.0,
@@ -120,15 +120,6 @@ CUSTOM_FIELDS = {
         "value": "",
         "x": 277.8,
         "y": 183.6,
-        "size": 11,
-        "bold": True,
-        "italic": True,
-        "align": "C"
-    },
-    "phat_lich": {
-        "value": "",
-        "x": 155,
-        "y": 214,
         "size": 11,
         "bold": True,
         "italic": True,

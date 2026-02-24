@@ -16,10 +16,22 @@ echo.
 echo [2/3] Build file .exe...
 REM Bundle phoimau.jpg và quyyfont.ttf vào exe
 REM Các file này sẽ được extract ra thư mục exe khi chạy lần đầu
-pyinstaller --onefile --windowed --name "QuyYPrinter" ^
+REM Exclude các thư viện không liên quan (cài chung môi trường Python)
+python -m PyInstaller --onefile --windowed --name "QuyYPrinter" ^
   --icon "icon.ico" ^
   --add-data "phoimau.jpg;." ^
   --add-data "quyyfont.ttf;." ^
+  --exclude-module torch ^
+  --exclude-module tensorflow ^
+  --exclude-module scipy ^
+  --exclude-module sklearn ^
+  --exclude-module transformers ^
+  --exclude-module matplotlib ^
+  --exclude-module IPython ^
+  --exclude-module notebook ^
+  --exclude-module pytest ^
+  --exclude-module sympy ^
+  --exclude-module cv2 ^
   main.py
 
 if errorlevel 1 (
