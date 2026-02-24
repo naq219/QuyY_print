@@ -266,7 +266,8 @@ class PrintPreviewWindow(tk.Toplevel):
                 temp_path,
                 field_positions=self.config_manager.field_positions,
                 custom_fields=self.config_manager.custom_fields,
-                use_vni=use_vni
+                use_vni=use_vni,
+                use_background=getattr(self.config_manager, "use_background_image", False)
             )
             
             # Print với máy in được chọn
@@ -304,7 +305,8 @@ class PrintPreviewWindow(tk.Toplevel):
                 filepath,
                 field_positions=self.config_manager.field_positions,
                 custom_fields=self.config_manager.custom_fields,
-                use_vni=use_vni
+                use_vni=use_vni,
+                use_background=getattr(self.config_manager, "use_background_image", False)
             )
             ToastNotification.show(self, f"✅ Đã lưu file PDF!", position="bottom")
         except Exception as e:

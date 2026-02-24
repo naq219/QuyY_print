@@ -6,6 +6,7 @@ import os
 import shutil
 
 from core.resource_manager import get_app_dir, get_phoimau_path
+from core.resource_manager import get_font_path
 from ui.components.toast import ToastNotification
 
 # Constants
@@ -46,8 +47,43 @@ class CoordinateTab(tk.Frame):
         # Multi-select: {field_name: canvas_item_id}
         self.selected_items = {}
         
+        # Load custom font
+        self.custom_font_family = self._load_custom_font()
+        
         self._build_ui()
         self.refresh()
+        
+    def _load_custom_font(self):
+        """Load font TTF vào hệ thống (Windows) để dùng trong canvas"""
+        try:
+            font_path = get_font_path()
+            if not font_path or not os.path.exists(font_path):
+                return None
+            
+            # Detect font family name from TTF file
+            from PIL import ImageFont
+            pil_font = ImageFont.truetype(font_path, 12)
+            font_family = pil_font.getname()[0]  # e.g. "VNI-Commerce"
+            
+            # Windows: Load font privately into process
+            import platform
+            if platform.system() == "Windows":
+                import ctypes
+                # FR_PRIVATE = 0x10 — font only available to this process
+                result = ctypes.windll.gdi32.AddFontResourceExW(font_path, 0x10, 0)
+                if result > 0:
+                    print(f"[CoordinateTab] Loaded font: {font_family} from {font_path}")
+                    return font_family
+                else:
+                    print(f"[CoordinateTab] Failed to load font via AddFontResourceEx")
+                    return None
+            else:
+                # Linux/Mac: tkinter usually can find system fonts
+                return font_family
+                
+        except Exception as e:
+            print(f"[CoordinateTab] Error loading custom font: {e}")
+            return None
         
     def _build_ui(self):
         # 1. Canvas Area
@@ -230,10 +266,23 @@ class CoordinateTab(tk.Frame):
         if align == "C": anchor = tk.S  # Giữa dưới
         elif align == "R": anchor = tk.SE  # Dưới cùng bên phải
         
+        # Chọn font và convert text tùy theo cài đặt VNI
+        use_vni = getattr(self.config_manager, "use_vni_font", True)
+        
+        if use_vni and self.custom_font_family:
+            # VNI font: convert text sang VNI encoding
+            from core.utils import convert_unicode_to_vni
+            display_text = convert_unicode_to_vni(text)
+            font_family = self.custom_font_family
+        else:
+            # Unicode font: dùng Arial
+            display_text = text
+            font_family = "Arial"
+        
         self.canvas.create_text(
             x_px, y_px, 
-            text=text, 
-            font=("Arial", int(size * 0.8), "bold" if is_custom else "normal"), 
+            text=display_text, 
+            font=(font_family, int(size * 0.8)), 
             fill="blue" if not is_custom else "red",
             anchor=anchor,
             tags=("field", name)
@@ -520,12 +569,14 @@ class CoordinateTab(tk.Frame):
                 
                 # Tạo PDF với toạ độ hiện tại
                 use_vni = getattr(self.config_manager, "use_vni_font", True)
+                use_background = getattr(self.config_manager, "use_background_image", False)
                 generator.create_single_pdf(
                     sample_data,
                     temp_path,
                     field_positions=self.config_manager.field_positions,
                     custom_fields=self.config_manager.custom_fields,
-                    use_vni=use_vni
+                    use_vni=use_vni,
+                    use_background=use_background
                 )
                 
                 # In ra máy in mặc định
