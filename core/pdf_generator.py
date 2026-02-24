@@ -162,21 +162,10 @@ class PDFGenerator:
             text = convert_unicode_to_vni(str(text))
         
         x = config["x"] * mm
-        # ReportLab coordinate system starts from bottom-left
-        # But our config is likely top-left based (common in UI).
-        # Convert y: y_draw = page_height - y_config
         y = page_height - (config["y"] * mm)
         
         size = config.get("size", 12)
         font_name = self.font_name
-        
-        # Apply Bold/Italic via font switching if available, or just standard font for now.
-        # TTFont registers a single face. To support Bold, we need slightly difference handling or register variants.
-        # For simplicity, assuming the font supports it or we just use size/align.
-        # User config includes 'bold', 'italic'. ReportLab needs 'FontName-Bold'.
-        # Since we only registered 'QuyYFont', we sticking to it.
-        # Maybe simulate bold? c.setTextRenderMode(2)? No.
-        # We will ignore bold/italic for custom font unless we register variants.
         
         c.setFont(font_name, size)
         

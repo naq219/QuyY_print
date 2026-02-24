@@ -214,10 +214,20 @@ class PrintPreviewWindow(tk.Toplevel):
         if align == "C": anchor = tk.S
         elif align == "R": anchor = tk.SE
         
+        display_size = int(size * 0.8)
+        
+        # Dịch y xuống thêm descent để baseline khớp PDF
+        import tkinter.font as tkFont
+        try:
+            tk_f = tkFont.Font(family="Arial", size=display_size)
+            descent = tk_f.metrics("descent")
+        except Exception:
+            descent = int(display_size * 0.25)
+        
         self.canvas.create_text(
-            x_px, y_px,
+            x_px, y_px + descent,
             text=text,
-            font=("Arial", int(size * 0.8), "bold" if is_custom else "normal"),
+            font=("Arial", display_size, "bold" if is_custom else "normal"),
             fill="blue" if not is_custom else "red",
             anchor=anchor,
             tags="field"

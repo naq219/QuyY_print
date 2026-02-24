@@ -262,9 +262,9 @@ class CoordinateTab(tk.Frame):
             # Field tiêu chuẩn: dùng sample data hoặc tên field
             text = SAMPLE_DATA.get(name, name)
             
-        anchor = tk.SW  # Tọa độ là điểm dưới cùng bên trái
-        if align == "C": anchor = tk.S  # Giữa dưới
-        elif align == "R": anchor = tk.SE  # Dưới cùng bên phải
+        anchor = tk.SW  # Tọa độ baseline-left (khớp PDF drawString)
+        if align == "C": anchor = tk.S
+        elif align == "R": anchor = tk.SE
         
         # Chọn font và convert text tùy theo cài đặt VNI
         use_vni = getattr(self.config_manager, "use_vni_font", True)
@@ -279,10 +279,22 @@ class CoordinateTab(tk.Frame):
             display_text = text
             font_family = "Arial"
         
+        display_size = int(size * 0.8)
+        
+        # Tính descent để chuyển từ baseline sang bottom (khớp với PDF drawString)
+        # PDF drawString đặt text tại baseline, tkinter SW đặt tại đáy chữ
+        # Cần dịch y_px xuống thêm descent để baseline nằm đúng vị trí y_mm
+        import tkinter.font as tkFont
+        try:
+            tk_f = tkFont.Font(family=font_family, size=display_size)
+            descent = tk_f.metrics("descent")
+        except Exception:
+            descent = int(display_size * 0.25)
+        
         self.canvas.create_text(
-            x_px, y_px, 
+            x_px, y_px + descent, 
             text=display_text, 
-            font=(font_family, int(size * 0.8)), 
+            font=(font_family, display_size), 
             fill="blue" if not is_custom else "red",
             anchor=anchor,
             tags=("field", name)
