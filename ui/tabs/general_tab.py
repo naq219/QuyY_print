@@ -296,7 +296,6 @@ class GeneralTab(tk.Frame):
         for key, val in lunar_map.items():
             if key in self.config_manager.custom_fields:
                 self.config_manager.custom_fields[key]["value"] = val
-        self.config_manager.mark_dirty()
         ToastNotification.success(self, "✅ Đã cập nhật âm lịch / Phật lịch")
 
     def _browse_excel(self):

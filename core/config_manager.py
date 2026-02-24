@@ -166,7 +166,6 @@ class ConfigManager:
         """
         self.selected_date = date_str
         self._update_date_fields_from_selected_date()
-        self.mark_dirty()
 
     def _update_date_fields_from_selected_date(self):
         """Cập nhật các custom fields ngày tháng từ selected_date"""
