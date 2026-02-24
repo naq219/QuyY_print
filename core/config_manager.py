@@ -83,7 +83,6 @@ class ConfigManager:
             "field_positions": self.field_positions,
             "excel_mapping": self.excel_mapping,
             "custom_fields": self.custom_fields,
-            "selected_date": self.selected_date,
             "use_vni_font": self.use_vni_font,
             "export_mode": self.export_mode
         }
@@ -104,11 +103,8 @@ class ConfigManager:
                             self.excel_mapping = data["excel_mapping"]
                         if "custom_fields" in data:
                             self.custom_fields = data["custom_fields"]
-                        if "selected_date" in data:
-                            self.selected_date = data["selected_date"]
-                            # Cập nhật lại custom fields từ selected_date đã lưu
-                            if self.selected_date:
-                                self._update_date_fields_from_selected_date()
+                        # selected_date không load từ config - luôn trống khi khởi động
+                        # self.selected_date giữ nguyên None
                         if "use_vni_font" in data:
                             self.use_vni_font = data["use_vni_font"]
                         if "export_mode" in data:
@@ -133,7 +129,6 @@ class ConfigManager:
                 "field_positions": self.field_positions,
                 "excel_mapping": self.excel_mapping,
                 "custom_fields": self.custom_fields,
-                "selected_date": self.selected_date,
                 "use_vni_font": self.use_vni_font,
                 "export_mode": self.export_mode
             }
@@ -264,8 +259,7 @@ class ConfigManager:
                 self.custom_fields = data["custom_fields"]
             if "excel_mapping" in data:
                 self.excel_mapping = data["excel_mapping"]
-            if "selected_date" in data:
-                self.selected_date = data["selected_date"]
+            # selected_date không load từ file - luôn trống khi khởi động
             if "use_vni_font" in data:
                 self.use_vni_font = data["use_vni_font"]
             if "export_mode" in data:
@@ -286,7 +280,6 @@ class ConfigManager:
             "field_positions": self.field_positions,
             "excel_mapping": self.excel_mapping,
             "custom_fields": self.custom_fields,
-            "selected_date": self.selected_date,
             "use_vni_font": self.use_vni_font
         }
         self._save_file(filepath, data)

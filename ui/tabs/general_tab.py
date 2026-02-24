@@ -18,9 +18,10 @@ from ui.components.toast import ToastNotification
 
 
 class GeneralTab(tk.Frame):
-    def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback):
+    def __init__(self, parent, config_manager, excel_var, output_var, count_var, mode_var, on_excel_selected_callback, on_export_callback, on_print_callback, pdf_service=None):
         super().__init__(parent)
         self.config_manager = config_manager
+        self.pdf_service = pdf_service
         self.excel_var = excel_var
         self.output_var = output_var
         self.count_var = count_var
@@ -137,6 +138,22 @@ class GeneralTab(tk.Frame):
         
         self.btn_print = tk.Button(action_frame, text="🖨️ In Trực Tiếp", command=self.on_print, bg="#e74c3c", fg="white", font=("Arial", 12, "bold"), height=2)
         self.btn_print.pack(side=tk.RIGHT, fill=tk.X, expand=True)
+        
+        # Nút nhập nhanh - mở dialog nhập tay không cần Excel
+        quick_frame = tk.Frame(content_frame)
+        quick_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.btn_quick = tk.Button(
+            quick_frame, 
+            text="✍️  Nhập Nhanh (không cần Excel)", 
+            command=self._open_quick_entry,
+            bg="#8e44ad", fg="white", 
+            font=("Arial", 11, "bold"),
+            cursor="hand2",
+            relief="flat",
+            height=2
+        )
+        self.btn_quick.pack(fill=tk.X)
 
     def _build_section(self, parent, title):
         self.last_section = tk.LabelFrame(parent, text=title, font=("Arial", 11, "bold"), padx=10, pady=10)
@@ -310,3 +327,13 @@ class GeneralTab(tk.Frame):
     def _on_vni_change(self, *args):
         self.config_manager.use_vni_font = self.use_vni_var.get()
         self.config_manager.mark_dirty()
+    
+    def _open_quick_entry(self):
+        """Mở dialog nhập nhanh thông tin"""
+        from ui.components.quick_entry_dialog import QuickEntryDialog
+        QuickEntryDialog(
+            self.winfo_toplevel(),
+            self.config_manager,
+            self.pdf_service,
+            get_printer_callback=self.get_selected_printer
+        )

@@ -115,7 +115,8 @@ class MainWindow:
             self.export_mode_var,
             on_excel_selected_callback=self.on_excel_selected,
             on_export_callback=self.on_export,
-            on_print_callback=self.on_print
+            on_print_callback=self.on_print,
+            pdf_service=self.pdf_service
         )
         self.tab_coord = CoordinateTab(self.notebook, self.config_manager, self.status_var)
         self.tab_custom = CustomFieldTab(self.notebook, self.config_manager, self.status_var)
