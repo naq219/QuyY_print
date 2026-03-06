@@ -9,7 +9,7 @@ useHead({ title: 'QuyY Print - In Lá Phái Quy Y' })
 
 // ===================== COMPOSABLES =====================
 const toast = useToast()
-const { config, saveConfig, updateDateFields, clearDateFields } = useConfigManager()
+const { config, saveConfig, resetConfig, updateDateFields, clearDateFields, exportConfig } = useConfigManager()
 const { convertDate } = useLunarConverter()
 const { readExcelFile, validateExcel, processAll, getDemoData } = useDataProcessor()
 
@@ -30,6 +30,14 @@ const selectedFields = ref<Set<string>>(new Set())
 const isDragging = ref(false)
 const dragStartPos = ref({ x: 0, y: 0 })
 const dragFieldStartPositions = ref<Record<string, { x: number; y: number }>>({})
+
+// Inline canvas editing
+const inlineEditField = ref<string | null>(null)
+const inlineEditValue = ref('')
+const inlineEditPos = ref({ left: '0px', top: '0px', width: '200px', fontSize: '14px' })
+
+// Field value overrides (cho standard fields - lưu tạm, không vào config)
+const fieldOverrides = ref<Record<string, string>>({})
 
 // Excel data
 const excelData = ref<Record<string, unknown>[]>([])
@@ -67,21 +75,23 @@ const currentRecord = computed(() => {
 
 const totalRecords = computed(() => processedRecords.value.length)
 
+const fieldLabels: Record<string, string> = {
+  phap_danh: 'Pháp danh', ho_ten: 'Họ tên', sinh_nam: 'Năm sinh', dia_chi: 'Địa chỉ',
+  phat_lich: 'Phật lịch', ngay_duong: 'Ngày dương', thang_duong: 'Tháng dương',
+  nam_duong: 'Năm dương', ngay_am: 'Ngày âm', thang_am: 'Tháng âm', nam_am: 'Năm âm'
+}
+
 const allFields = computed(() => {
-  // Gộp field_positions + custom_fields cho render/chỉnh sửa
   const result: Record<string, { label: string; value: string; x: number; y: number; size: number; align: 'L' | 'C' | 'R'; isCustom: boolean }> = {}
 
-  const fieldLabels: Record<string, string> = {
-    phap_danh: 'Pháp danh', ho_ten: 'Họ tên', sinh_nam: 'Năm sinh', dia_chi: 'Địa chỉ',
-    phat_lich: 'Phật lịch', ngay_duong: 'Ngày dương', thang_duong: 'Tháng dương',
-    nam_duong: 'Năm dương', ngay_am: 'Ngày âm', thang_am: 'Tháng âm', nam_am: 'Năm âm'
-  }
-
-  // 4 field chính (data từ record hiện tại)
+  // 4 field chính (data từ record hiện tại, có thể bị override)
   for (const [key, pos] of Object.entries(config.value.field_positions)) {
     const rec = currentRecord.value
     let value = ''
-    if (rec) {
+    // Ưu tiên override > data gốc
+    if (fieldOverrides.value[key] !== undefined) {
+      value = fieldOverrides.value[key]
+    } else if (rec) {
       if (key === 'phap_danh') value = rec.phap_danh
       else if (key === 'ho_ten') value = rec.ho_ten
       else if (key === 'sinh_nam') value = rec.sinh_nam
@@ -96,6 +106,11 @@ const allFields = computed(() => {
   }
 
   return result
+})
+
+// Xóa overrides khi chuyển record
+watch(currentRecordIndex, () => {
+  fieldOverrides.value = {}
 })
 
 // ===================== TEMPLATE IMAGE =====================
@@ -177,7 +192,7 @@ function drawCanvas() {
 }
 
 // Watch để redraw
-watch([() => config.value.field_positions, () => config.value.custom_fields, currentRecordIndex, () => config.value.use_vni_font, selectedFields], () => {
+watch([() => config.value.field_positions, () => config.value.custom_fields, currentRecordIndex, () => config.value.use_vni_font, selectedFields, fieldOverrides], () => {
   nextTick(() => drawCanvas())
 }, { deep: true })
 
@@ -201,6 +216,9 @@ function getFieldAtPos(px: number, py: number): string | null {
 }
 
 function onCanvasMouseDown(e: MouseEvent) {
+  // Nếu đang inline edit, bỏ qua mousedown
+  if (inlineEditField.value) return
+
   const canvas = canvasRef.value
   if (!canvas) return
   const rect = canvas.getBoundingClientRect()
@@ -211,7 +229,6 @@ function onCanvasMouseDown(e: MouseEvent) {
 
   if (clickedField) {
     if (e.ctrlKey || e.metaKey) {
-      // Toggle selection
       const newSet = new Set(selectedFields.value)
       if (newSet.has(clickedField)) newSet.delete(clickedField)
       else newSet.add(clickedField)
@@ -232,6 +249,89 @@ function onCanvasMouseDown(e: MouseEvent) {
   } else {
     selectedFields.value = new Set()
   }
+}
+
+// ===================== DOUBLE-CLICK = INLINE EDIT =====================
+function onCanvasDblClick(e: MouseEvent) {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const canvasRect = canvas.getBoundingClientRect()
+  const px = (e.clientX - canvasRect.left) * (canvas.width / canvasRect.width)
+  const py = (e.clientY - canvasRect.top) * (canvas.height / canvasRect.height)
+
+  const key = getFieldAtPos(px, py)
+  if (!key) return
+
+  const field = allFields.value[key]
+  if (!field) return
+
+  // Tính vị trí input overlay (lấy theo tọa độ CSS thực tế trên canvas element)
+  const scale = canvasScale.value
+  const scaleRatio = canvasRect.width / canvas.width
+  const fieldX = field.x * scale * scaleRatio
+  const fieldY = field.y * scale * scaleRatio
+  const fieldFontSize = Math.round(field.size * scale * 0.35 * scaleRatio)
+
+  // Offset cho align
+  let leftOffset = fieldX
+  if (field.align === 'C') leftOffset = fieldX - 80
+  else if (field.align === 'R') leftOffset = fieldX - 160
+
+  inlineEditPos.value = {
+    left: `${Math.max(0, leftOffset)}px`,
+    top: `${fieldY - fieldFontSize - 4}px`,
+    width: `${Math.max(120, 200)}px`,
+    fontSize: `${Math.max(12, fieldFontSize)}px`
+  }
+
+  inlineEditField.value = key
+  inlineEditValue.value = field.value
+  selectedFields.value = new Set([key])
+
+  nextTick(() => {
+    const input = document.querySelector('.canvas-inline-input') as HTMLInputElement
+    if (input) { input.focus(); input.select() }
+  })
+}
+
+let _isSavingInline = false
+
+function saveInlineEdit() {
+  if (_isSavingInline) return
+  const key = inlineEditField.value
+  if (!key) return
+
+  _isSavingInline = true
+  const newValue = inlineEditValue.value
+  const field = allFields.value[key]
+  if (!field) { cancelInlineEdit(); _isSavingInline = false; return }
+
+  if (field.isCustom) {
+    // Custom field → lưu cố định vào config
+    if (config.value.custom_fields[key]) {
+      config.value.custom_fields[key].value = newValue
+    }
+  } else {
+    // Standard field → lưu vào biến tạm (spread = new object → guaranteed reactive)
+    fieldOverrides.value = { ...fieldOverrides.value, [key]: newValue }
+  }
+
+  inlineEditField.value = null
+  nextTick(() => {
+    drawCanvas()
+    _isSavingInline = false
+  })
+  toast.add({ severity: 'success', summary: 'Đã sửa', detail: `${fieldLabels[key] || key}: ${newValue}`, life: 1500 })
+}
+
+function cancelInlineEdit() {
+  inlineEditField.value = null
+  nextTick(() => drawCanvas())
+}
+
+function onInlineEditKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') { e.preventDefault(); saveInlineEdit() }
+  else if (e.key === 'Escape') { e.preventDefault(); cancelInlineEdit() }
 }
 
 function onCanvasMouseMove(e: MouseEvent) {
@@ -319,6 +419,44 @@ function clearDate() {
   selectedDate.value = null
   lunarInfo.value = null
   clearDateFields()
+}
+
+// ===================== EDITABLE LUNAR INFO =====================
+const lunarDisplayText = computed(() => {
+  if (!lunarInfo.value) return ''
+  const li = lunarInfo.value
+  return `${li.lunar_day}/${li.lunar_month} ${li.lunar_year_name}`
+})
+
+function onLunarTextChange(text: string) {
+  // Parse "27/10 Ất Tỵ" hoặc "27/10"
+  const parts = text.trim().split(/[\s/]+/)
+  if (parts.length >= 2) {
+    const day = parts[0]!
+    const month = parts[1]!
+    const yearName = parts.slice(2).join(' ')
+
+    if (config.value.custom_fields.ngay_am) config.value.custom_fields.ngay_am.value = day
+    if (config.value.custom_fields.thang_am) config.value.custom_fields.thang_am.value = month
+    if (yearName && config.value.custom_fields.nam_am) config.value.custom_fields.nam_am.value = yearName
+
+    // Cập nhật lunarInfo để hiển thị đúng
+    if (lunarInfo.value) {
+      lunarInfo.value = { ...lunarInfo.value, lunar_day: parseInt(day) || 0, lunar_month: parseInt(month) || 0, lunar_year_name: yearName || lunarInfo.value.lunar_year_name }
+    }
+    toast.add({ severity: 'success', summary: 'Đã sửa âm lịch', detail: text, life: 1500 })
+  }
+}
+
+function onBuddhistYearChange(text: string) {
+  const val = text.trim()
+  if (config.value.custom_fields.phat_lich) {
+    config.value.custom_fields.phat_lich.value = val
+  }
+  if (lunarInfo.value) {
+    lunarInfo.value = { ...lunarInfo.value, buddhist_year: parseInt(val) || 0 }
+  }
+  toast.add({ severity: 'success', summary: 'Đã sửa Phật lịch', detail: val, life: 1500 })
 }
 
 // ===================== EXCEL =====================
@@ -413,9 +551,9 @@ async function generatePdf() {
     const fontBytes = await fontResp.arrayBuffer()
     const customFont = await pdfDoc.embedFont(fontBytes)
 
-    // Load background image (nếu bật)
+    // Load background image (chỉ khi user BẬT tùy chọn)
     let bgImage: Awaited<ReturnType<typeof pdfDoc.embedJpg>> | null = null
-    if (templateImage.value) {
+    if (config.value.use_background_image) {
       try {
         const bgResp = await fetch('/phoimau.jpg')
         const bgBytes = await bgResp.arrayBuffer()
@@ -437,10 +575,15 @@ async function generatePdf() {
       // Draw standard fields
       for (const [key, pos] of Object.entries(config.value.field_positions)) {
         let text = ''
-        if (key === 'phap_danh') text = record.phap_danh
-        else if (key === 'ho_ten') text = record.ho_ten
-        else if (key === 'sinh_nam') text = record.sinh_nam
-        else if (key === 'dia_chi') text = record.dia_chi
+        // Áp dụng override nếu có (chỉ cho record đang hiển thị)
+        if (record === processedRecords.value[currentRecordIndex.value] && fieldOverrides.value[key] !== undefined) {
+          text = fieldOverrides.value[key]
+        } else {
+          if (key === 'phap_danh') text = record.phap_danh
+          else if (key === 'ho_ten') text = record.ho_ten
+          else if (key === 'sinh_nam') text = record.sinh_nam
+          else if (key === 'dia_chi') text = record.dia_chi
+        }
         if (!text) continue
 
         if (config.value.use_vni_font) text = convertUnicodeToVni(text)
@@ -524,6 +667,27 @@ function onSaveConfig() {
   toast.add({ severity: 'success', summary: 'Đã lưu', detail: 'Cấu hình đã được lưu', life: 2000 })
 }
 
+function onResetConfig() {
+  resetConfig()
+  toast.add({ severity: 'info', summary: 'Đã reset', detail: 'Cấu hình đã khôi phục mặc định', life: 2000 })
+}
+
+function onExportConfig() {
+  const jsonStr = exportConfig()
+  const blob = new Blob([jsonStr], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'quyy_config.json'
+  a.click()
+}
+
+// ===================== INLINE EDIT CUSTOM VALUE =====================
+function onCustomValueChange(key: string, newValue: string) {
+  if (config.value.custom_fields[key]) {
+    config.value.custom_fields[key].value = newValue
+  }
+}
+
 // Field editing dialog
 const editingField = ref<{ key: string; label: string; x: number; y: number; size: number; align: string } | null>(null)
 const showEditDialog = ref(false)
@@ -573,16 +737,22 @@ function saveFieldEdit() {
         <!-- Ngày Quy Y -->
         <div class="date-group">
           <label class="date-label">📅 Ngày Quy Y:</label>
-          <DatePicker v-model="selectedDate" dateFormat="dd/mm/yy" placeholder="Chọn ngày..." showIcon
-            class="date-input" @update:modelValue="onDateChange" />
+          <DatePicker v-model="selectedDate" dateFormat="dd/mm/yy" placeholder="Chọn ngày..."
+            showIcon class="date-input" @update:modelValue="onDateChange" />
           <Button v-if="selectedDate" icon="pi pi-times" severity="secondary" text rounded size="small"
             @click="clearDate" v-tooltip.bottom="'Xóa ngày'" />
         </div>
 
-        <!-- Lunar Info (hiện khi đã chọn ngày) -->
-        <div v-if="lunarInfo" class="lunar-badge">
-          🌙 {{ lunarInfo.lunar_day }}/{{ lunarInfo.lunar_month }} {{ lunarInfo.lunar_year_name }}
-          · ☸️ PL {{ lunarInfo.buddhist_year }}
+        <!-- Lunar Info (editable) -->
+        <div v-if="lunarInfo" class="lunar-edit-group">
+          <span class="lunar-label">🌙 ÂL:</span>
+          <input type="text" class="lunar-inline" :value="lunarDisplayText"
+            @change="(e: Event) => onLunarTextChange((e.target as HTMLInputElement).value)" 
+            v-tooltip.bottom="'Sửa ngày âm lịch'" />
+          <span class="lunar-label">☸️ PL:</span>
+          <input type="text" class="lunar-inline pl-input" :value="config.custom_fields.phat_lich?.value || ''"
+            @change="(e: Event) => onBuddhistYearChange((e.target as HTMLInputElement).value)"
+            v-tooltip.bottom="'Sửa Phật lịch'" />
         </div>
       </div>
 
@@ -624,9 +794,17 @@ function saveFieldEdit() {
         </div>
 
         <div class="canvas-wrapper">
-          <canvas ref="canvasRef" :width="canvasWidth" :height="canvasHeight" tabindex="0"
-            @mousedown="onCanvasMouseDown" @mousemove="onCanvasMouseMove" @mouseup="onCanvasMouseUp"
-            @mouseleave="onCanvasMouseUp" @keydown="onCanvasKeyDown" />
+          <div class="canvas-container">
+            <canvas ref="canvasRef" :width="canvasWidth" :height="canvasHeight" tabindex="0"
+              @mousedown="onCanvasMouseDown" @mousemove="onCanvasMouseMove" @mouseup="onCanvasMouseUp"
+              @mouseleave="onCanvasMouseUp" @keydown="onCanvasKeyDown" @dblclick="onCanvasDblClick" />
+
+            <!-- Inline edit overlay -->
+            <input v-if="inlineEditField" v-model="inlineEditValue"
+              class="canvas-inline-input"
+              :style="{ left: inlineEditPos.left, top: inlineEditPos.top, width: inlineEditPos.width, fontSize: inlineEditPos.fontSize }"
+              @blur="saveInlineEdit" @keydown="onInlineEditKeydown" @click.stop />
+          </div>
         </div>
 
         <!-- Selection info -->
@@ -648,18 +826,24 @@ function saveFieldEdit() {
           <div class="fields-table">
             <div class="field-row header">
               <span class="col-name">Field</span>
+              <span class="col-val">Giá trị</span>
               <span class="col-x">X</span>
               <span class="col-y">Y</span>
-              <span class="col-size">Size</span>
               <span class="col-action"></span>
             </div>
             <div v-for="(field, key) in allFields" :key="key" class="field-row"
               :class="{ selected: selectedFields.has(key as string), custom: field.isCustom }"
               @click="selectedFields = new Set([key as string])">
               <span class="col-name" :title="field.label">{{ field.label }}</span>
+              <span class="col-val">
+                <input v-if="field.isCustom" type="text" class="inline-val-input"
+                  :value="config.custom_fields[key as string]?.value || ''"
+                  @input="(e: Event) => onCustomValueChange(key as string, (e.target as HTMLInputElement).value)"
+                  @click.stop placeholder="..." />
+                <span v-else class="val-readonly" :title="field.value">{{ field.value || '—' }}</span>
+              </span>
               <span class="col-x">{{ field.x.toFixed(1) }}</span>
               <span class="col-y">{{ field.y.toFixed(1) }}</span>
-              <span class="col-size">{{ field.size }}</span>
               <span class="col-action">
                 <Button icon="pi pi-pencil" text rounded size="small" @click.stop="openFieldEdit(key as string)" />
               </span>
@@ -712,9 +896,9 @@ function saveFieldEdit() {
             </div>
             <div class="setting-item">
               <Button label="Reset mặc định" icon="pi pi-undo" size="small" severity="danger" text
-                @click="() => { useConfigManager().resetConfig(); toast.add({ severity: 'info', summary: 'Đã reset', life: 2000 }) }" />
+                @click="onResetConfig" />
               <Button label="Export Config" icon="pi pi-download" size="small" severity="secondary" text
-                @click="() => { const blob = new Blob([useConfigManager().exportConfig()], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'quyy_config.json'; a.click() }" />
+                @click="onExportConfig" />
             </div>
           </div>
         </div>
@@ -829,15 +1013,34 @@ function saveFieldEdit() {
 .date-input { width: 145px; }
 :deep(.date-input .p-inputtext) { font-size: 0.85rem; padding: 6px 8px; }
 
-.lunar-badge {
+.lunar-edit-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   background: linear-gradient(135deg, var(--yellow-100), var(--orange-100));
-  color: var(--orange-800);
-  padding: 5px 12px;
+  padding: 3px 10px;
   border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
   white-space: nowrap;
 }
+.lunar-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--orange-800);
+}
+.lunar-inline {
+  width: 130px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(255,255,255,0.5);
+  color: var(--orange-900);
+  transition: all 0.15s;
+}
+.lunar-inline.pl-input { width: 55px; text-align: center; }
+.lunar-inline:hover { border-color: var(--orange-300); background: rgba(255,255,255,0.8); }
+.lunar-inline:focus { outline: none; border-color: var(--orange-500); background: white; box-shadow: 0 0 0 2px rgba(251,146,60,0.2); }
 
 .vni-toggle {
   display: flex;
@@ -888,12 +1091,31 @@ function saveFieldEdit() {
   justify-content: center;
   overflow: auto;
 }
-.canvas-wrapper canvas {
+.canvas-container {
+  position: relative;
+  display: inline-block;
+}
+.canvas-container canvas {
   border: 1px solid var(--surface-border);
   border-radius: 6px;
   cursor: crosshair;
   max-width: 100%;
   height: auto;
+}
+
+/* Inline edit input overlay */
+.canvas-inline-input {
+  position: absolute;
+  z-index: 10;
+  padding: 3px 6px;
+  border: 2px solid #22c55e;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1a1a1a;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 3px rgba(34, 197, 94, 0.2);
+  outline: none;
+  min-width: 60px;
 }
 .selection-info {
   text-align: center;
@@ -905,8 +1127,8 @@ function saveFieldEdit() {
 
 /* RIGHT: Fields panel */
 .fields-panel {
-  width: 320px;
-  min-width: 280px;
+  width: 380px;
+  min-width: 320px;
   border-left: 1px solid var(--surface-border);
   overflow-y: auto;
   background: var(--surface-ground);
@@ -955,10 +1177,41 @@ function saveFieldEdit() {
   text-transform: uppercase;
   color: var(--text-color-secondary);
 }
-.col-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-x, .col-y { width: 50px; text-align: right; font-variant-numeric: tabular-nums; }
-.col-size { width: 35px; text-align: center; }
+.col-name { width: 80px; min-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-val { flex: 1; min-width: 50px; overflow: hidden; }
+.col-x, .col-y { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
 .col-action { width: 32px; text-align: center; }
+
+/* Inline value editing */
+.inline-val-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--text-color);
+  transition: all 0.15s;
+  font-variant-numeric: tabular-nums;
+}
+.inline-val-input:hover {
+  border-color: var(--surface-300);
+  background: var(--surface-0);
+}
+.inline-val-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background: var(--surface-0);
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb, 59, 130, 246), 0.15);
+}
+.val-readonly {
+  color: var(--text-color-secondary);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
 
 /* Quick entry */
 .quick-entry-form {

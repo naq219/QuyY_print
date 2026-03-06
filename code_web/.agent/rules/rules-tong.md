@@ -16,3 +16,5 @@ trigger: always_on
 - `useConfigManager` dùng `import.meta.server` guard khi truy cập localStorage (SSR safe)
 - Font VNI: phải load bằng FontFace API cho canvas, đồng thời embed vào pdf-lib cho PDF
 - Composable dùng `useState()` thay `ref()` khi cần share state giữa các component
+- Vue reactivity: khi thêm/sửa key trong `ref<Record>({})`, dùng spread `ref.value = { ...ref.value, [key]: val }` thay vì mutation `ref.value[key] = val` để đảm bảo trigger reactivity
+- Blur + Enter double-fire: khi input bị remove từ DOM (v-if=false), blur event vẫn fire → cần guard flag chống double execution
