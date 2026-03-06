@@ -649,12 +649,36 @@ async function downloadPdf() {
   }
 }
 
+function printViaIframe(blobUrl: string) {
+  // Xóa iframe cũ nếu có
+  const old = document.getElementById('print-iframe')
+  if (old) old.remove()
+
+  const iframe = document.createElement('iframe')
+  iframe.id = 'print-iframe'
+  iframe.style.position = 'fixed'
+  iframe.style.top = '-9999px'
+  iframe.style.left = '-9999px'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = 'none'
+  iframe.src = blobUrl
+  document.body.appendChild(iframe)
+
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } catch {
+      // Fallback nếu iframe bị chặn cross-origin
+      window.open(blobUrl, '_blank')
+    }
+  }
+}
+
 function printPdf() {
   if (!pdfPreviewUrl.value) return
-  const win = window.open(pdfPreviewUrl.value, '_blank')
-  if (win) {
-    win.addEventListener('load', () => { win.print() })
-  }
+  printViaIframe(pdfPreviewUrl.value)
 }
 
 async function quickPrint() {
@@ -714,10 +738,7 @@ async function printSingleRecord(idx: number) {
     const pdfBytes = await pdfDoc.save()
     const blob = new Blob([pdfBytes], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
-    const win = window.open(url, '_blank')
-    if (win) {
-      win.addEventListener('load', () => { win.print() })
-    }
+    printViaIframe(url)
     toast.add({ severity: 'info', summary: 'In', detail: `Đang in: ${record.ho_ten}`, life: 2000 })
   } catch (err) {
     console.error(err)
