@@ -1,0 +1,9 @@
+name = "huynhde"
+pages_build_output_dir = "dist"
+compatibility_date = "2025-02-25"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NUXT_TURSO_URL = "libsql://huynhde-naq5219.aws-ap-northeast-1.turso.io"
+NUXT_TURSO_TOKEN = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzE5ODMwODYsImlkIjoiMDE5YzkyNjctYzcwMS03OGZiLWIxNDctODhlYzVmMTJiMGYyIiwicmlkIjoiYWM5MjZjNWQtNjNjNi00ZDYyLTlmYmQtZjNjNTFmOTc4ZjUxIn0.u9dvA4ZadmDcg6At_5fmWR2-9sEqEZiLb0MY3YBE6BVu1q167maKzIGfKkahRBieS4qszuGJlYYHBGrB1gH-Cw"
+NUXT_JWT_SECRET = "chamsoc-phatgiao-secret-key-2026-production"

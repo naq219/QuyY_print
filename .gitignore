@@ -1,3 +1,10 @@
-dist
-build
-__pycache__
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+*.exe
+.env
+.DS_Store
+Thumbs.db
