@@ -200,20 +200,46 @@ watch([() => config.value.field_positions, () => config.value.custom_fields, cur
 // ===================== MOUSE / KEYBOARD =====================
 function getFieldAtPos(px: number, py: number): string | null {
   const scale = canvasScale.value
-  let closest: string | null = null
-  let minDist = 20
+  const canvas = canvasRef.value
+  if (!canvas) return null
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  const pad = 6 // padding quanh text cho dễ click
 
   for (const [key, field] of Object.entries(allFields.value)) {
     if (!field.value) continue
+
     const fx = field.x * scale
     const fy = field.y * scale
-    const dist = Math.sqrt((px - fx) ** 2 + (py - fy) ** 2)
-    if (dist < minDist) {
-      minDist = dist
-      closest = key
+    const displaySize = Math.round(field.size * scale * 0.35)
+
+    let displayText = field.value
+    if (config.value.use_vni_font) {
+      displayText = convertUnicodeToVni(displayText)
+    }
+
+    const fontFamily = config.value.use_vni_font ? "'QuyY Font', serif" : "'Arial', sans-serif"
+    ctx.font = `${displaySize}px ${fontFamily}`
+    const metrics = ctx.measureText(displayText)
+    const textWidth = metrics.width
+
+    // Tính vị trí x thực tế sau align
+    let rectX = fx
+    if (field.align === 'C') rectX = fx - textWidth / 2
+    else if (field.align === 'R') rectX = fx - textWidth
+
+    // Bounding box: [rectX - pad, fy - displaySize - pad] → [rectX + textWidth + pad, fy + pad]
+    const x1 = rectX - pad
+    const y1 = fy - displaySize - pad
+    const x2 = rectX + textWidth + pad
+    const y2 = fy + pad
+
+    if (px >= x1 && px <= x2 && py >= y1 && py <= y2) {
+      return key
     }
   }
-  return closest
+  return null
 }
 
 function onCanvasMouseDown(e: MouseEvent) {
