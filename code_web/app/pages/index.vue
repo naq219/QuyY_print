@@ -56,6 +56,7 @@ const lunarInfo = ref<LunarResult | null>(null)
 // UI
 const showAdvanced = ref(false)
 const showQuickEntry = ref(false)
+const showFieldsPanel = ref(false)
 const isGeneratingPdf = ref(false)
 const pdfPreviewUrl = ref('')
 
@@ -605,7 +606,13 @@ async function generatePdf() {
     if (pdfPreviewUrl.value) URL.revokeObjectURL(pdfPreviewUrl.value)
     pdfPreviewUrl.value = URL.createObjectURL(blob)
 
-    toast.add({ severity: 'success', summary: 'PDF đã tạo', detail: `${processedRecords.value.length} trang`, life: 3000 })
+    toast.add({ severity: 'success', summary: 'PDF đã tạo', detail: `${processedRecords.value.length} trang - đang tải xuống...`, life: 3000 })
+
+    // Auto download
+    const a = document.createElement('a')
+    a.href = pdfPreviewUrl.value
+    a.download = `QuyY_${processedRecords.value.length}pages.pdf`
+    a.click()
   } catch (err) {
     console.error(err)
     toast.add({ severity: 'error', summary: 'Lỗi tạo PDF', detail: String(err), life: 5000 })
@@ -647,6 +654,74 @@ function printPdf() {
   const win = window.open(pdfPreviewUrl.value, '_blank')
   if (win) {
     win.addEventListener('load', () => { win.print() })
+  }
+}
+
+async function quickPrint() {
+  if (!pdfPreviewUrl.value) {
+    await generatePdf()
+  }
+  printPdf()
+}
+
+async function printSingleRecord(idx: number) {
+  const record = processedRecords.value[idx]
+  if (!record) return
+
+  try {
+    const pdfDoc = await PDFDocument.create()
+    pdfDoc.registerFontkit(fontkit)
+
+    const fontResp = await fetch('/quyyfont.ttf')
+    const fontBytes = await fontResp.arrayBuffer()
+    const customFont = await pdfDoc.embedFont(fontBytes)
+
+    let bgImage: Awaited<ReturnType<typeof pdfDoc.embedJpg>> | null = null
+    if (config.value.use_background_image) {
+      try {
+        const bgResp = await fetch('/phoimau.jpg')
+        const bgBytes = await bgResp.arrayBuffer()
+        bgImage = await pdfDoc.embedJpg(bgBytes)
+      } catch { /* skip */ }
+    }
+
+    const pageWidth = A4_WIDTH_MM * MM_TO_PT
+    const pageHeight = A4_HEIGHT_MM * MM_TO_PT
+    const page = pdfDoc.addPage([pageWidth, pageHeight])
+
+    if (bgImage) {
+      page.drawImage(bgImage, { x: 0, y: 0, width: pageWidth, height: pageHeight })
+    }
+
+    for (const [key, pos] of Object.entries(config.value.field_positions)) {
+      let text = ''
+      if (key === 'phap_danh') text = record.phap_danh
+      else if (key === 'ho_ten') text = record.ho_ten
+      else if (key === 'sinh_nam') text = record.sinh_nam
+      else if (key === 'dia_chi') text = record.dia_chi
+      if (!text) continue
+      if (config.value.use_vni_font) text = convertUnicodeToVni(text)
+      drawTextField(page, text, pos.x, pos.y, pos.size, pos.align, customFont, pageHeight)
+    }
+
+    for (const [, cf] of Object.entries(config.value.custom_fields)) {
+      if (!cf.value) continue
+      let text = cf.value
+      if (config.value.use_vni_font) text = convertUnicodeToVni(text)
+      drawTextField(page, text, cf.x, cf.y, cf.size, cf.align, customFont, pageHeight)
+    }
+
+    const pdfBytes = await pdfDoc.save()
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (win) {
+      win.addEventListener('load', () => { win.print() })
+    }
+    toast.add({ severity: 'info', summary: 'In', detail: `Đang in: ${record.ho_ten}`, life: 2000 })
+  } catch (err) {
+    console.error(err)
+    toast.add({ severity: 'error', summary: 'Lỗi', detail: String(err), life: 5000 })
   }
 }
 
@@ -757,30 +832,54 @@ function saveFieldEdit() {
       </div>
 
       <div class="toolbar-right">
-        <!-- VNI Toggle -->
-        <div class="vni-toggle">
-          <label>Font VNI</label>
-          <InputSwitch v-model="config.use_vni_font" />
-        </div>
+        <!-- Actions: In luôn đặt trước -->
+        <Button label="In" icon="pi pi-print" severity="warn" @click="quickPrint"
+          v-tooltip.bottom="'Tạo PDF và In ngay'" />
+        <Button label="Tạo PDF" icon="pi pi-file-pdf" severity="success" :loading="isGeneratingPdf"
+          @click="generatePdf" v-tooltip.bottom="'Tạo và tải PDF xuống'" />
 
         <div class="toolbar-divider" />
 
-        <!-- Actions -->
-        <Button label="Tạo PDF" icon="pi pi-file-pdf" severity="success" :loading="isGeneratingPdf"
-          @click="generatePdf" />
-        <Button v-if="pdfPreviewUrl" label="Tải PDF" icon="pi pi-download" severity="info" outlined
-          @click="downloadPdf" />
-        <Button v-if="pdfPreviewUrl" label="In" icon="pi pi-print" severity="warn" @click="printPdf" />
+        <!-- Toggle Fields Panel -->
+        <Button :icon="showFieldsPanel ? 'pi pi-times' : 'pi pi-sliders-h'" 
+          :severity="showFieldsPanel ? 'secondary' : 'contrast'" text rounded
+          v-tooltip.bottom="showFieldsPanel ? 'Ẩn bảng fields' : 'Hiện bảng fields'"
+          @click="showFieldsPanel = !showFieldsPanel" />
       </div>
     </div>
 
     <!-- ============ MAIN AREA ============ -->
     <div class="main-area">
-      <!-- LEFT: Canvas -->
+      <!-- LEFT: Records List -->
+      <div class="records-panel">
+        <div class="records-header">
+          <i class="pi pi-users" /> Danh sách ({{ totalRecords }})
+        </div>
+        <div class="records-list">
+          <div v-for="(rec, idx) in processedRecords" :key="idx"
+            class="record-item" :class="{ active: idx === currentRecordIndex }"
+            @click="currentRecordIndex = idx">
+            <span class="rec-idx">{{ idx + 1 }}</span>
+            <div class="rec-info">
+              <span class="rec-name">{{ rec.ho_ten || '(chưa có tên)' }}</span>
+              <span v-if="rec.phap_danh" class="rec-phap">{{ rec.phap_danh }}</span>
+            </div>
+            <button class="rec-print-btn" :class="{ visible: idx === currentRecordIndex }"
+              @click.stop="printSingleRecord(idx)" title="In người này">
+              <i class="pi pi-print" />
+            </button>
+          </div>
+          <div v-if="processedRecords.length === 0" class="records-empty">
+            Chưa có dữ liệu
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: Canvas -->
       <div class="canvas-panel">
         <div class="canvas-header">
           <span class="canvas-title">
-            <i class="pi pi-image" /> Canvas Preview ({{ A4_WIDTH_MM }}×{{ A4_HEIGHT_MM }}mm - A4 Landscape)
+            <i class="pi pi-image" /> Canvas Preview
           </span>
 
           <!-- Record Navigation -->
@@ -814,8 +913,8 @@ function saveFieldEdit() {
         </div>
       </div>
 
-      <!-- RIGHT: Fields Panel -->
-      <div class="fields-panel">
+      <!-- RIGHT: Fields Panel (toggle) -->
+      <div v-if="showFieldsPanel" class="fields-panel">
         <!-- Fields list -->
         <div class="panel-section">
           <div class="panel-header">
@@ -890,6 +989,10 @@ function saveFieldEdit() {
             ⚙️ Cài đặt nâng cao
           </div>
           <div v-if="showAdvanced" class="advanced-settings">
+            <div class="setting-item">
+              <label>Sử dụng Font VNI</label>
+              <InputSwitch v-model="config.use_vni_font" />
+            </div>
             <div class="setting-item">
               <label>In kèm ảnh nền (phôi mẫu)</label>
               <InputSwitch v-model="config.use_background_image" />
@@ -1042,13 +1145,7 @@ function saveFieldEdit() {
 .lunar-inline:hover { border-color: var(--orange-300); background: rgba(255,255,255,0.8); }
 .lunar-inline:focus { outline: none; border-color: var(--orange-500); background: white; box-shadow: 0 0 0 2px rgba(251,146,60,0.2); }
 
-.vni-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
+
 
 /* ===== MAIN AREA ===== */
 .main-area {
@@ -1057,7 +1154,104 @@ function saveFieldEdit() {
   overflow: hidden;
 }
 
-/* LEFT: Canvas */
+/* LEFT: Records List */
+.records-panel {
+  width: 200px;
+  min-width: 160px;
+  border-right: 1px solid var(--surface-border);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-ground);
+}
+.records-header {
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-color);
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--surface-border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.records-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--surface-100);
+  transition: background 0.12s;
+  font-size: 0.8rem;
+}
+.record-item:hover { background: var(--surface-hover); }
+.record-item.active {
+  background: var(--green-50);
+  border-left: 3px solid var(--green-500);
+}
+.rec-idx {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.record-item.active .rec-idx {
+  background: var(--green-500);
+  color: white;
+}
+.rec-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.rec-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rec-phap {
+  font-size: 0.72rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.records-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 0.8rem;
+}
+.rec-print-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 4px;
+  color: var(--text-color-secondary);
+  opacity: 0.15;
+  transition: all 0.15s;
+  font-size: 0.8rem;
+}
+.rec-print-btn.visible,
+.record-item:hover .rec-print-btn { opacity: 0.6; }
+.rec-print-btn:hover { opacity: 1 !important; color: var(--green-600); background: var(--green-50); }
+
+/* CENTER: Canvas */
 .canvas-panel {
   flex: 1;
   display: flex;
