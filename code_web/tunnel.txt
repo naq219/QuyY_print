@@ -1,0 +1,4 @@
+[35m◐[39m Starting cloudflared tunnel to http://localhost:3000
+[36mℹ[39m Waiting for tunnel URL...
+[32m✔[39m Tunnel ready at [36mhttps://photograph-quilt-banners-favorite.trycloudflare.com[39m
+Terminate batch job (Y/N)? 

@@ -39,5 +39,11 @@ export default defineNuxtConfig({
 
   tailwindcss: {
     configPath: 'tailwind.config.js'
+  },
+
+  vite: {
+    server: {
+      allowedHosts: true // Allow trycloudflare.com tunnel URLs
+    }
   }
 })
