@@ -18,3 +18,5 @@ trigger: always_on
 - Composable dùng `useState()` thay `ref()` khi cần share state giữa các component
 - Vue reactivity: khi thêm/sửa key trong `ref<Record>({})`, dùng spread `ref.value = { ...ref.value, [key]: val }` thay vì mutation `ref.value[key] = val` để đảm bảo trigger reactivity
 - Blur + Enter double-fire: khi input bị remove từ DOM (v-if=false), blur event vẫn fire → cần guard flag chống double execution
+- Canvas hit-detection: PHẢI dùng bounding box (ctx.measureText + align offset) thay vì khoảng cách tới anchor point. Nếu dùng distance-based sẽ chỉ click được gần đầu text
+- Print PDF không mở tab mới: dùng hidden iframe (`position: fixed; top: -9999px`) + `iframe.contentWindow.print()` thay vì `window.open`

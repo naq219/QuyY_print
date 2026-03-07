@@ -59,6 +59,7 @@ const showQuickEntry = ref(false)
 const showFieldsPanel = ref(false)
 const isGeneratingPdf = ref(false)
 const pdfPreviewUrl = ref('')
+const highlightDate = ref(false)
 
 // Nhập nhanh
 const quickForm = ref({
@@ -558,13 +559,19 @@ function clearQuickForm() {
 }
 
 // ===================== PDF GENERATION =====================
+function highlightDatePicker() {
+  toast.add({ severity: 'warn', summary: 'Chưa chọn ngày', detail: 'Vui lòng chọn Ngày Quy Y trước', life: 3000 })
+  highlightDate.value = true
+  setTimeout(() => { highlightDate.value = false }, 3000)
+}
+
 async function generatePdf() {
   if (processedRecords.value.length === 0) {
     toast.add({ severity: 'warn', summary: 'Không có dữ liệu', detail: 'Vui lòng tải Excel hoặc nhập nhanh', life: 3000 })
     return
   }
   if (!selectedDate.value && !isUsingDemoData.value) {
-    toast.add({ severity: 'warn', summary: 'Chưa chọn ngày', detail: 'Vui lòng chọn Ngày Quy Y trước khi tạo PDF', life: 3000 })
+    highlightDatePicker()
     return
   }
 
@@ -708,6 +715,10 @@ function printPdf() {
 }
 
 async function quickPrint() {
+  if (!selectedDate.value && !isUsingDemoData.value) {
+    highlightDatePicker()
+    return
+  }
   if (!pdfPreviewUrl.value) {
     await generatePdf()
   }
@@ -857,7 +868,7 @@ function saveFieldEdit() {
         <div class="toolbar-divider" />
 
         <!-- Ngày Quy Y -->
-        <div class="date-group">
+        <div class="date-group" :class="{ 'highlight-pulse': highlightDate }">
           <label class="date-label">📅 Ngày Quy Y:</label>
           <DatePicker v-model="selectedDate" dateFormat="dd/mm/yy" placeholder="Chọn ngày..."
             showIcon class="date-input" @update:modelValue="onDateChange" />
@@ -880,7 +891,7 @@ function saveFieldEdit() {
 
       <div class="toolbar-right">
         <!-- Actions: In luôn đặt trước -->
-        <Button label="In" icon="pi pi-print" severity="warn" @click="quickPrint"
+        <Button label="In hàng loạt" icon="pi pi-print" severity="warn" @click="quickPrint"
           v-tooltip.bottom="'Tạo PDF và In ngay'" />
         <Button label="Tạo PDF" icon="pi pi-file-pdf" severity="success" :loading="isGeneratingPdf"
           @click="generatePdf" v-tooltip.bottom="'Tạo và tải PDF xuống'" />
@@ -1162,6 +1173,16 @@ function saveFieldEdit() {
 }
 .date-input { width: 145px; }
 :deep(.date-input .p-inputtext) { font-size: 0.85rem; padding: 6px 8px; }
+
+/* Highlight animation khi chưa chọn ngày */
+.date-group.highlight-pulse {
+  animation: date-pulse 0.6s ease-in-out 5;
+  border-radius: 8px;
+}
+@keyframes date-pulse {
+  0%, 100% { background: transparent; box-shadow: none; }
+  50% { background: rgba(251,146,60,0.2); box-shadow: 0 0 0 3px rgba(251,146,60,0.4); }
+}
 
 .lunar-edit-group {
   display: flex;
